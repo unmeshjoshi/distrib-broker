@@ -1,10 +1,10 @@
-package org.dist.queue.network
+package org.dist.simplekafka.network
 
 import java.util.concurrent.atomic.AtomicInteger
 
-import org.dist.kvstore.{InetAddressAndPort, JsonSerDes}
-import org.dist.queue.api.{RequestKeys, RequestOrResponse, TopicMetadataRequest, TopicMetadataResponse}
-import org.dist.queue.server.Config
+import org.dist.simplekafka.api.{RequestKeys, RequestOrResponse, TopicMetadataRequest, TopicMetadataResponse}
+import org.dist.simplekafka.common.JsonSerDes
+import org.dist.simplekafka.server.Config
 
 import scala.collection.Set
 

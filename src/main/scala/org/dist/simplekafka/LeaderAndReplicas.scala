@@ -1,7 +1,7 @@
 package org.dist.simplekafka
 
-import org.dist.queue.common.TopicAndPartition
-import org.dist.queue.util.ZkUtils.Broker
+import org.dist.simplekafka.common.TopicAndPartition
+import org.dist.simplekafka.util.ZkUtils.Broker
 
 case class PartitionInfo(leader:Broker, allReplicas:List[Broker])
 

@@ -1,4 +1,4 @@
-package org.dist.queue
+package org.dist.common
 
 import java.io.File
 import java.net.ServerSocket

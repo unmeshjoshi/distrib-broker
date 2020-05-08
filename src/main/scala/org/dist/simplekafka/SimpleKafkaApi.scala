@@ -1,10 +1,9 @@
 package org.dist.simplekafka
 
-import org.dist.kvstore.JsonSerDes
-import org.dist.queue.api.{RequestKeys, RequestOrResponse}
-import org.dist.queue.common.TopicAndPartition
-import org.dist.queue.server.Config
-import org.dist.queue.util.ZkUtils.Broker
+import org.dist.simplekafka.api.{RequestKeys, RequestOrResponse}
+import org.dist.simplekafka.common.{JsonSerDes, TopicAndPartition}
+import org.dist.simplekafka.server.Config
+import org.dist.simplekafka.util.ZkUtils.Broker
 
 import scala.jdk.CollectionConverters._
 

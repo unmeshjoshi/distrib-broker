@@ -2,10 +2,10 @@ package org.dist.simplekafka
 
 import java.util.concurrent.atomic.AtomicInteger
 
-import org.dist.kvstore.{InetAddressAndPort, JsonSerDes}
-import org.dist.queue.api.{RequestKeys, RequestOrResponse}
-import org.dist.queue.common.{Logging, TopicAndPartition}
-import org.dist.queue.util.Utils
+import org.dist.simplekafka.api.{RequestKeys, RequestOrResponse}
+import org.dist.simplekafka.common.{JsonSerDes, Logging, TopicAndPartition}
+import org.dist.simplekafka.network.InetAddressAndPort
+import org.dist.simplekafka.util.Utils
 
 class SimpleConsumer(bootstrapBroker: InetAddressAndPort, socketClient:SocketClient = new SocketClient) extends Logging {
   val correlationId = new AtomicInteger(0)

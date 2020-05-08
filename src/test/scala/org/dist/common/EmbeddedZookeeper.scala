@@ -1,9 +1,9 @@
-package org.dist.queue
+package org.dist.common
 
 import java.net.InetSocketAddress
 
 import org.apache.zookeeper.server.{NIOServerCnxnFactory, ZooKeeperServer}
-import org.dist.queue.util.Utils
+import org.dist.simplekafka.util.Utils
 
 
 class EmbeddedZookeeper(val connectString: String) {

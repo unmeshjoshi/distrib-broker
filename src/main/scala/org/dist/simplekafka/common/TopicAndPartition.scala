@@ -1,4 +1,4 @@
-package org.dist.queue.common
+package org.dist.simplekafka.common
 
 case class TopicAndPartition(topic: String, partition: Int) {
 

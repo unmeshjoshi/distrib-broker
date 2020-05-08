@@ -1,7 +1,7 @@
 package org.dist.simplekafka
 
-import org.dist.queue.server.Config
-import org.dist.queue.{TestUtils, ZookeeperTestHarness}
+import org.dist.simplekafka.server.Config
+import org.dist.common.{TestUtils, ZookeeperTestHarness}
 import org.dist.util.Networks
 
 import scala.jdk.CollectionConverters._

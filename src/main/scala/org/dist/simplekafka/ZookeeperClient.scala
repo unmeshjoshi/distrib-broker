@@ -5,11 +5,10 @@ import com.google.common.annotations.VisibleForTesting
 import org.I0Itec.zkclient.exception.{ZkNoNodeException, ZkNodeExistsException}
 import org.I0Itec.zkclient.{IZkChildListener, IZkDataListener, IZkStateListener, ZkClient}
 import org.apache.zookeeper.Watcher.Event.KeeperState
-import org.dist.kvstore.JsonSerDes
-import org.dist.queue.common.Logging
-import org.dist.queue.server.Config
-import org.dist.queue.util.ZkUtils.Broker
-import org.dist.queue.util.{ZKStringSerializer, ZkUtils}
+import org.dist.simplekafka.common.{JsonSerDes, Logging}
+import org.dist.simplekafka.server.Config
+import org.dist.simplekafka.util.ZkUtils.Broker
+import org.dist.simplekafka.util.{ZKStringSerializer, ZkUtils}
 
 import scala.jdk.CollectionConverters._
 

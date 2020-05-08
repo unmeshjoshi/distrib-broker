@@ -4,10 +4,10 @@ import java.util
 import java.util.concurrent.atomic.AtomicInteger
 
 import com.google.common.annotations.VisibleForTesting
-import org.dist.kvstore.{InetAddressAndPort, JsonSerDes}
-import org.dist.queue.api.{RequestKeys, RequestOrResponse}
-import org.dist.queue.common.TopicAndPartition
-import org.dist.queue.util.ZkUtils.Broker
+import org.dist.simplekafka.api.{RequestKeys, RequestOrResponse}
+import org.dist.simplekafka.common.{JsonSerDes, TopicAndPartition}
+import org.dist.simplekafka.network.InetAddressAndPort
+import org.dist.simplekafka.util.ZkUtils.Broker
 
 import scala.util.control.Breaks
 

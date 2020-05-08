@@ -1,7 +1,7 @@
-package org.dist.queue.common
+package org.dist.simplekafka.common
 
 import org.apache.log4j.Logger
-import org.dist.queue.util.Utils
+import org.dist.simplekafka.util.Utils
 
 trait Logging {
   val loggerName = this.getClass.getName

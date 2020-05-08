@@ -1,11 +1,10 @@
-package org.dist.queue.util
+package org.dist.simplekafka.util
 
 import org.I0Itec.zkclient.ZkClient
 import org.I0Itec.zkclient.exception.{ZkMarshallingError, ZkNoNodeException, ZkNodeExistsException}
 import org.I0Itec.zkclient.serialize.ZkSerializer
 import org.apache.zookeeper.data.Stat
-import org.dist.kvstore.JsonSerDes
-import org.dist.queue.common.{Logging, TopicAndPartition}
+import org.dist.simplekafka.common.{JsonSerDes, Logging, TopicAndPartition}
 
 import scala.collection.{Map, Seq, Set, mutable}
 

@@ -1,7 +1,7 @@
 package org.dist.simplekafka
 
 import org.I0Itec.zkclient.{IZkChildListener, IZkDataListener, ZkClient}
-import org.dist.queue.util.ZkUtils.Broker
+import org.dist.simplekafka.util.ZkUtils.Broker
 import org.scalatest.FunSuite
 
 class TestZookeeperClient(brokerIds:List[Int]) extends ZookeeperClient {

@@ -3,8 +3,8 @@ package org.dist.simplekafka
 import java.util
 
 import akka.actor.ActorSystem
-import org.dist.queue.common.TopicAndPartition
-import org.dist.queue.server.Config
+import org.dist.simplekafka.common.TopicAndPartition
+import org.dist.simplekafka.server.Config
 
 class ReplicaManager(config:Config)(implicit actorSystem:ActorSystem) {
   val allPartitions = new util.HashMap[TopicAndPartition, Partition]()

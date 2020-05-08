@@ -1,9 +1,9 @@
 package org.dist.simplekafka
 
 import akka.actor.ActorSystem
-import org.dist.queue.TestUtils
-import org.dist.queue.common.TopicAndPartition
-import org.dist.queue.server.Config
+import org.dist.common.TestUtils
+import org.dist.simplekafka.common.TopicAndPartition
+import org.dist.simplekafka.server.Config
 import org.dist.util.Networks
 import org.scalatest.FunSuite
 

@@ -5,8 +5,8 @@ import java.io._
 import akka.actor.{ActorRef, ActorSystem}
 import akka.stream.OverflowStrategy
 import akka.stream.scaladsl.Source
-import org.dist.queue.common.TopicAndPartition
-import org.dist.queue.server.Config
+import org.dist.simplekafka.common.TopicAndPartition
+import org.dist.simplekafka.server.Config
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, Promise}

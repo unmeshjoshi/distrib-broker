@@ -1,9 +1,9 @@
 package org.dist.simplekafka
 
 import org.I0Itec.zkclient.IZkChildListener
-import org.dist.queue.server.Config
-import org.dist.queue.util.ZkUtils.Broker
-import org.dist.queue.{TestUtils, ZookeeperTestHarness}
+import org.dist.simplekafka.server.Config
+import org.dist.simplekafka.util.ZkUtils.Broker
+import org.dist.common.{TestUtils, ZookeeperTestHarness}
 import org.dist.util.Networks
 import org.mockito.{ArgumentMatchers, Mockito}
 

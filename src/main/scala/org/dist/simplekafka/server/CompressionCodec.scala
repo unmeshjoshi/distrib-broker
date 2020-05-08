@@ -15,7 +15,7 @@
  * limitations under the License.
 */
 
-package org.dist.queue.server
+package org.dist.simplekafka.server
 
 object CompressionCodec {
   def getCompressionCodec(codec: Int): CompressionCodec = {

@@ -20,10 +20,10 @@ package org.dist.simplekafka
 import java.net._
 import java.util.concurrent.atomic.AtomicBoolean
 
-import org.dist.kvstore.InetAddressAndPort
-import org.dist.queue.api.RequestOrResponse
-import org.dist.queue.common.Logging
-import org.dist.queue.util.Utils
+import org.dist.simplekafka.api.RequestOrResponse
+import org.dist.simplekafka.common.Logging
+import org.dist.simplekafka.network.InetAddressAndPort
+import org.dist.simplekafka.util.Utils
 import org.dist.util.SocketIO
 
 class SimpleSocketServer(val brokerId: Int,

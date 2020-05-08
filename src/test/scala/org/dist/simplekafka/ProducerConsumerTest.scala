@@ -1,10 +1,10 @@
 package org.dist.simplekafka
 
 import akka.actor.ActorSystem
-import org.dist.kvstore.InetAddressAndPort
-import org.dist.queue.common.Logging
-import org.dist.queue.server.Config
-import org.dist.queue.{TestUtils, ZookeeperTestHarness}
+import org.dist.simplekafka.common.Logging
+import org.dist.simplekafka.server.Config
+import org.dist.common.{TestUtils, ZookeeperTestHarness}
+import org.dist.simplekafka.network.InetAddressAndPort
 import org.dist.util.Networks
 
 class ProducerConsumerTest extends ZookeeperTestHarness with Logging {

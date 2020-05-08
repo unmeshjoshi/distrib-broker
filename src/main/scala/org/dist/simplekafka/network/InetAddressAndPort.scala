@@ -1,4 +1,4 @@
-package org.dist.kvstore
+package org.dist.simplekafka.network
 
 import java.net.InetAddress
 

@@ -1,7 +1,7 @@
-package org.dist.queue.api
+package org.dist.simplekafka.api
 
-import org.dist.queue.common.ErrorMappings
-import org.dist.queue.util.ZkUtils.Broker
+import org.dist.simplekafka.common.ErrorMappings
+import org.dist.simplekafka.util.ZkUtils.Broker
 
 
 case class TopicMetadataResponse(topicsMetadata: Seq[TopicMetadata],

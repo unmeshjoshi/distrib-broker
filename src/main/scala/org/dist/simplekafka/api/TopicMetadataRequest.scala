@@ -1,4 +1,4 @@
-package org.dist.queue.api
+package org.dist.simplekafka.api
 
 case class TopicMetadataRequest(val versionId: Short,
                                 val correlationId: Int,

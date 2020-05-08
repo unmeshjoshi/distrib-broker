@@ -1,6 +1,6 @@
-package org.dist.queue.api
+package org.dist.simplekafka.api
 
-import org.dist.kvstore.JsonSerDes
+import org.dist.simplekafka.common.JsonSerDes
 
 object Request {
   val FollowerReplicaFetcherId: Int = 0

@@ -1,9 +1,8 @@
-package org.dist.queue.network
+package org.dist.simplekafka.network
 
 import java.net.Socket
 
-import org.dist.kvstore.InetAddressAndPort
-import org.dist.queue.api.RequestOrResponse
+import org.dist.simplekafka.api.RequestOrResponse
 import org.dist.util.SocketIO
 
 class SocketSender {

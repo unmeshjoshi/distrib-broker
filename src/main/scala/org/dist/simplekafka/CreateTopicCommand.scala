@@ -2,7 +2,7 @@ package org.dist.simplekafka
 
 import java.util.Random
 
-import org.dist.queue.util.AdminUtils.rand
+import org.dist.simplekafka.util.AdminUtils.rand
 
 import scala.collection.{Map, Seq, mutable}
 

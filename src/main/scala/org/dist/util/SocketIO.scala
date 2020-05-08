@@ -3,7 +3,7 @@ package org.dist.util
 import java.io.{DataInputStream, DataOutputStream}
 import java.net.Socket
 
-import org.dist.kvstore.JsonSerDes
+import org.dist.simplekafka.common.JsonSerDes
 
 import scala.util.Using
 

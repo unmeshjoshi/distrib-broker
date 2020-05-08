@@ -1,4 +1,4 @@
-package org.dist.queue.server
+package org.dist.simplekafka.server
 
 import scala.collection.Map
 

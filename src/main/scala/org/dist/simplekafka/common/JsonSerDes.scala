@@ -1,4 +1,4 @@
-package org.dist.kvstore
+package org.dist.simplekafka.common
 
 import com.fasterxml.jackson.annotation.{JsonAutoDetect, PropertyAccessor}
 import com.fasterxml.jackson.core.`type`.TypeReference
@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.databind._
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
-import org.dist.queue.common.TopicAndPartition
+import org.dist.simplekafka.network.InetAddressAndPort
 
 object JsonSerDes {
 
