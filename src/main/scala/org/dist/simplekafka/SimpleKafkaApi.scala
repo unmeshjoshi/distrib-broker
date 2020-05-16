@@ -5,12 +5,23 @@ import org.dist.simplekafka.common.{JsonSerDes, TopicAndPartition}
 import org.dist.simplekafka.server.Config
 import org.dist.simplekafka.util.ZkUtils.Broker
 
+import scala.collection.Set
 import scala.jdk.CollectionConverters._
 
 
 class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) {
   var aliveBrokers = List[Broker]()
   var leaderCache = new java.util.HashMap[TopicAndPartition, PartitionInfo]
+  val DefaultReplicaId = -1
+  var inSyncReplicas: Set[Replica] = Set.empty[Replica]
+
+  def isRequestFromReplica(consumeRequest: ConsumeRequest): Boolean = {
+    consumeRequest.replicaId != DefaultReplicaId
+  }
+
+  def updateLeaderHWAndMaybeExpandIsr(replicaId: Int, offset: Int) = {
+      //complete this..
+  }
 
   def handle(request: RequestOrResponse): RequestOrResponse = {
     request.requestId match {
@@ -51,6 +62,9 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) {
       }
       case RequestKeys.FetchKey ⇒ {
         val consumeRequest = JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[ConsumeRequest])
+        if (isRequestFromReplica(consumeRequest)) {
+          updateLeaderHWAndMaybeExpandIsr(consumeRequest.replicaId, consumeRequest.offset)
+        }
         val partition = replicaManager.getPartition(consumeRequest.topicAndPartition)
         val rows = if (partition == null) List() else partition.read(consumeRequest.offset)
         val consumeResponse = ConsumeResponse(rows.map(row ⇒ (row.key, row.value)).toMap)
@@ -60,3 +74,7 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) {
     }
   }
 }
+
+case class Replica(val brokerId: Int,
+                   val partition: Partition,
+                   initialHighWatermarkValue: Long = 0L)
