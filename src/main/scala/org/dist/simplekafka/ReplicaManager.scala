@@ -5,13 +5,14 @@ import java.util
 import akka.actor.ActorSystem
 import org.dist.simplekafka.common.TopicAndPartition
 import org.dist.simplekafka.server.Config
+import org.dist.simplekafka.util.ZkUtils.Broker
 
 class ReplicaManager(config:Config)(implicit actorSystem:ActorSystem) {
   val allPartitions = new util.HashMap[TopicAndPartition, Partition]()
 
-  def makeFollower(topicAndPartition: TopicAndPartition, leaderId:Int) = {
+  def makeFollower(topicAndPartition: TopicAndPartition, leader:Broker) = {
     val partition = getOrCreatePartition(topicAndPartition)
-    partition.makeFollower(leaderId)
+    partition.makeFollower(leader)
   }
 
   def makeLeader(topicAndPartition: TopicAndPartition) = {

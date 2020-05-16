@@ -22,7 +22,7 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) {
           if (leader.id == config.brokerId)
             replicaManager.makeLeader(topicAndPartition)
           else
-            replicaManager.makeFollower(topicAndPartition, leader.id)
+            replicaManager.makeFollower(topicAndPartition, leader)
         })
         RequestOrResponse(RequestKeys.LeaderAndIsrKey, "", request.correlationId)
       }
@@ -52,7 +52,7 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) {
       case RequestKeys.FetchKey ⇒ {
         val consumeRequest = JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[ConsumeRequest])
         val partition = replicaManager.getPartition(consumeRequest.topicAndPartition)
-        val rows = partition.read(consumeRequest.offset)
+        val rows = if (partition == null) List() else partition.read(consumeRequest.offset)
         val consumeResponse = ConsumeResponse(rows.map(row ⇒ (row.key, row.value)).toMap)
         RequestOrResponse(RequestKeys.FetchKey, JsonSerDes.serialize(consumeResponse), request.correlationId)
       }

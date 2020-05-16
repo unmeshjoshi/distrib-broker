@@ -26,7 +26,7 @@ class ProducerConsumerTest extends ZookeeperTestHarness with Logging {
       broker1.controller.liveBrokers.size == 5
     }, "Waiting for all brokers to be discovered by the controller")
 
-    new CreateTopicCommand(broker1.zookeeperClient).createTopic("topic1", 2, 5)
+    new CreateTopicCommand(broker1.zookeeperClient).createTopic("topic1", 2, 3)
 
     TestUtils.waitUntilTrue(() ⇒ {
         liveBrokersIn(broker1) == 5 && liveBrokersIn(broker2) == 5 && liveBrokersIn(broker3) == 5

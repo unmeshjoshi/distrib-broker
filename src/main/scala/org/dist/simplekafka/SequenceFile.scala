@@ -13,6 +13,8 @@ class SequenceFile {
 
   val offset = new AtomicInteger(0)
 
+  def lastOffset() = offset.get()
+
   abstract class AbstractWriter(var fileName: String) {
 
     def lastModified = {
