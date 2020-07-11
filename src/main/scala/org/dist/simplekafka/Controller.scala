@@ -90,12 +90,14 @@ class Controller(val zookeeperClient: ZookeeperClient, val brokerId: Int, socket
 
   def onBecomingLeader() = {
     liveBrokers = liveBrokers ++ zookeeperClient.getAllBrokers()
+    //getalltopics and partition assignments
     zookeeperClient.subscribeTopicChangeListener(new TopicChangeHandler(zookeeperClient, onTopicChange))
     zookeeperClient.subscribeBrokerChangeListener(new BrokerChangeListener(this, zookeeperClient))
   }
 
   def onTopicChange(topicName: String, partitionReplicas: Seq[PartitionReplicas]) = {
-    val leaderAndReplicas: Seq[LeaderAndReplicas] = selectLeaderAndFollowerBrokersForPartitions(topicName, partitionReplicas)
+    val leaderAndReplicas: Seq[LeaderAndReplicas]
+    = selectLeaderAndFollowerBrokersForPartitions(topicName, partitionReplicas)
 
     zookeeperClient.setPartitionLeaderForTopic(topicName, leaderAndReplicas.toList);
     //This is persisted in zookeeper for failover.. we are just keeping it in memory for now.

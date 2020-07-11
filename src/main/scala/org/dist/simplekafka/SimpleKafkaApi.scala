@@ -13,15 +13,11 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) {
   var aliveBrokers = List[Broker]()
   var leaderCache = new java.util.HashMap[TopicAndPartition, PartitionInfo]
   val DefaultReplicaId = -1
-  var inSyncReplicas: Set[Replica] = Set.empty[Replica]
 
   def isRequestFromReplica(consumeRequest: ConsumeRequest): Boolean = {
     consumeRequest.replicaId != DefaultReplicaId
   }
 
-  def updateLeaderHWAndMaybeExpandIsr(replicaId: Int, offset: Int) = {
-      //complete this..
-  }
 
   def handle(request: RequestOrResponse): RequestOrResponse = {
     request.requestId match {
@@ -62,11 +58,19 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) {
       }
       case RequestKeys.FetchKey ⇒ {
         val consumeRequest = JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[ConsumeRequest])
-        if (isRequestFromReplica(consumeRequest)) {
-          updateLeaderHWAndMaybeExpandIsr(consumeRequest.replicaId, consumeRequest.offset)
-        }
         val partition = replicaManager.getPartition(consumeRequest.topicAndPartition)
-        val rows = if (partition == null) List() else partition.read(consumeRequest.offset)
+
+        val isolation = if (isRequestFromReplica(consumeRequest)) FetchLogEnd else FetchHighWatermark
+        val rows = if (partition == null) List() else {
+          partition.read(consumeRequest.offset, consumeRequest.replicaId, isolation)
+        }
+
+        if (isRequestFromReplica(consumeRequest) && partition != null) {
+          partition.updateLastReadOffsetAndHighWaterMark(consumeRequest.replicaId, consumeRequest.offset)
+        }
+
+
+
         val consumeResponse = ConsumeResponse(rows.map(row ⇒ (row.key, row.value)).toMap)
         RequestOrResponse(RequestKeys.FetchKey, JsonSerDes.serialize(consumeResponse), request.correlationId)
       }

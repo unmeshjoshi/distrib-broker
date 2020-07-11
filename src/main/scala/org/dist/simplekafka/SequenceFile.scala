@@ -39,17 +39,18 @@ class SequenceFile {
     }
     def append(key: String, buffer: Array[Byte]): Int = {
       if (key == null) throw new IllegalArgumentException("Key cannot be NULL.")
-      val keyIndex = lastWritePosition
-      file.seek(keyIndex)
+      val filePosition = lastWritePosition
+      file.seek(filePosition)
       file.writeUTF(key)
       val length = buffer.size
       file.writeInt(length)
       file.write(buffer, 0, length)
+
       file.getFD.sync()
       this.lastWritePosition = file.getFilePointer
-      keyIndexes.put(key, keyIndex)
+      keyIndexes.put(key, filePosition)
       val currentOffset = offset.incrementAndGet()
-      offsetIndexes.put(currentOffset, keyIndex)
+      offsetIndexes.put(currentOffset, filePosition)
       currentOffset
     }
 

@@ -10,6 +10,10 @@ import org.scalatest.FunSuite
 class PartitionReadWriteTest extends FunSuite {
   implicit val partitionActorSystem = ActorSystem("partitionActorSystem")
 
+  test("update highwatermark") {
+
+  }
+
   test("should write and read messages in partition") {
     val config1 = Config(1, new Networks().hostname(), TestUtils.choosePort(), "", List(TestUtils.tempDir().getAbsolutePath))
 
