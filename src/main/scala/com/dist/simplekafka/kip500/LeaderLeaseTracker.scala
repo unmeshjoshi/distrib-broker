@@ -22,6 +22,7 @@ class LeaderLeaseTracker(var leases: ConcurrentHashMap[String, Lease], var clock
     for (leaseId <- leaseIds.asScala) {
       val lease = leases.get(leaseId)
       if (lease.getExpirationTime < now) {
+        info("Revoking lease with id " + leaseIds + " after " + lease.expirationTime)
         leases.remove(leaseId)
         server.propose(FenceBroker(lease.getName))
       }

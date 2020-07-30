@@ -28,7 +28,7 @@ class ControllerStateTest extends FunSuite {
     kv.applyEntry(walEntry)
 
     val session = kv.activeBrokers.get("0")
-    assert(session == Lease("0", 1000))
+    assert(session.getName == "0")
   }
 
   test("client id should be walentry id if client id is not passed") {

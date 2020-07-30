@@ -15,14 +15,14 @@ case class ClientSession(lastModifiedTime: Long, clientId: String, responses: ut
 
 }
 
-class ControllerState(walDir: File) {
+class ControllerState(walDir: File) extends Logging {
   val kv = new mutable.HashMap[String, String]()
   val wal = WriteAheadLog.create(walDir)
   applyLog()
   val activeBrokers = new ConcurrentHashMap[String, Lease]
 
 
-  var leaseTracker = new FollowerLeaseTracker(activeBrokers)
+  var leaseTracker:LeaseTracker = new FollowerLeaseTracker(activeBrokers)
 
   def put(key: String, value: String): Unit = {
     wal.writeEntry(SetValueCommand(key, value).serialize())
@@ -54,7 +54,8 @@ class ControllerState(walDir: File) {
         }
         case registerClientCommand: BrokerHeartbeat => {
           val brokerId = if (registerClientCommand.brokerId.isEmpty) s"${entry.entryId}" else registerClientCommand.brokerId
-          activeBrokers.put(brokerId, new Lease(brokerId, 1000))
+          info(s"Registering Active Broker with id ${brokerId}")
+          leaseTracker.addLease(new Lease(brokerId, TimeUnit.SECONDS.toNanos(200)))
           brokerId
         }
       }

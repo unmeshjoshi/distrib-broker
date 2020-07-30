@@ -16,6 +16,11 @@ object ServerState extends Enumeration {
 }
 
 class Controller(config: Config) extends Thread with Logging {
+  def brokerHeartbeat(brokerHeartbeat: BrokerHeartbeat) = {
+    val future = propose(brokerHeartbeat)
+    future
+  }
+
 
   def put(key: String, value: String) = {
     propose(SetValueCommand(key, value))
@@ -178,6 +183,15 @@ class Controller(config: Config) extends Thread with Logging {
     } else if (this.state == ServerState.FOLLOWING) {
       electionTimeoutChecker.startWithRandomInterval()
     }
+
+    kv.leaseTracker.stop()
+    if (this.state == ServerState.LEADING) {
+      kv.leaseTracker = new LeaderLeaseTracker(kv.activeBrokers, new SystemClock(), this)
+
+    } else {
+      kv.leaseTracker = new FollowerLeaseTracker(kv.activeBrokers)
+    }
+    kv.leaseTracker.start()
   }
 }
 
