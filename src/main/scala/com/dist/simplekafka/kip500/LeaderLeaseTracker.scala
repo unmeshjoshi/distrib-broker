@@ -15,22 +15,19 @@ class LeaderLeaseTracker(var leases: ConcurrentHashMap[String, Lease], var clock
   info("Creating leader tracker with " + this.leases)
   private val scheduler = new HeartBeatScheduler(this.expireLeases)
 
-  //<codeFragment name="removeAndProposeForReplication">
   override def expireLeases() = {
     val now = System.nanoTime
     val leaseIds = leases.keySet
     for (leaseId <- leaseIds.asScala) {
       val lease = leases.get(leaseId)
       if (lease.getExpirationTime < now) {
-        info("Revoking lease with id " + leaseIds + " after " + lease.expirationTime)
+        info("Revoking lease with id " + lease.getName + " after " + lease.expirationTime + " in " + server.config.serverId)
         leases.remove(leaseId)
         server.propose(FenceBroker(lease.getName))
       }
     }
   }
 
-  //<codeFragment name="addAndRefresh">
-  //</codeFragment>
   override def addLease(lease: Lease): Unit = {
     leases.put(lease.getName, lease)
     lease.refresh(clock.nanoTime)

@@ -15,7 +15,7 @@ object ServerState extends Enumeration {
   val LOOKING, FOLLOWING, LEADING = Value
 }
 
-class Controller(config: Config) extends Thread with Logging {
+class Controller(val config: Config) extends Thread with Logging {
   def brokerHeartbeat(brokerHeartbeat: BrokerHeartbeat) = {
     val future = propose(brokerHeartbeat)
     future

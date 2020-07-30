@@ -4,7 +4,8 @@ import java.io.{ByteArrayOutputStream, DataInputStream, DataOutputStream, InputS
 
 object CommandType {
   val RegisterBroker = 1
-  val SetValue = 2
+  val FenceBroker = 2
+  val SetValue = 3
 }
 
 object Command {
@@ -15,6 +16,8 @@ object Command {
       SetValueCommand.deserialize(daos)
     } else if (commandType == CommandType.RegisterBroker) {
       BrokerHeartbeat.deserialize(daos)
+    } else if (commandType == CommandType.FenceBroker) {
+      FenceBroker.deserialize(daos)
     } else throw new IllegalArgumentException(s"Unknown commandType ${commandType}")
   }
 }
@@ -70,9 +73,17 @@ case class FenceBroker(val clientId:String = "") extends Command {
   override def serialize(): Array[Byte] = {
     val baos = new ByteArrayOutputStream
     val dataStream = new DataOutputStream(baos)
-    dataStream.writeInt(CommandType.RegisterBroker)
+    dataStream.writeInt(CommandType.FenceBroker)
     dataStream.writeUTF(clientId)
     baos.toByteArray
+  }
+}
+
+object FenceBroker {
+  def deserialize(is: InputStream): Command = {
+    val daos = new DataInputStream(is)
+    val clientId = daos.readUTF()
+    FenceBroker(clientId)
   }
 }
 

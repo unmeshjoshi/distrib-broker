@@ -55,7 +55,7 @@ class ControllerState(walDir: File) extends Logging {
         case registerClientCommand: BrokerHeartbeat => {
           val brokerId = if (registerClientCommand.brokerId.isEmpty) s"${entry.entryId}" else registerClientCommand.brokerId
           info(s"Registering Active Broker with id ${brokerId}")
-          leaseTracker.addLease(new Lease(brokerId, TimeUnit.SECONDS.toNanos(200)))
+          leaseTracker.addLease(new Lease(brokerId, TimeUnit.SECONDS.toNanos(2)))
           brokerId
         }
       }
