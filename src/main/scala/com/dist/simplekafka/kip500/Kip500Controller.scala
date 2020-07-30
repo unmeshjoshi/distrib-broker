@@ -16,6 +16,10 @@ object ServerState extends Enumeration {
 }
 
 class Controller(val config: Config) extends Thread with Logging {
+  def createTopic(topicName: String, noOfPartitions: Int, replicationFactor: Int) = {
+
+  }
+
   def brokerHeartbeat(brokerHeartbeat: BrokerHeartbeat) = {
     val future = propose(brokerHeartbeat)
     future
