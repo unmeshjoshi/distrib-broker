@@ -134,7 +134,7 @@ class Kip500ControllerTest extends FunSuite {
     val entries = controllerWal.entries(walEntryId, controllerWal.lastLogEntryId)
     assert(entries.size == 1)
     val data = entries(0).data
-    val command = Command.deserialize(new ByteArrayInputStream(data))
+    val command = Record.deserialize(new ByteArrayInputStream(data))
     assert(command.asInstanceOf[FenceBroker].clientId == "0")
   }
 
@@ -188,8 +188,17 @@ class Kip500ControllerTest extends FunSuite {
       activeController.kv.activeBrokers.size() == 3
     }, "waiting for broker lease to expire")
 
-    activeController.createTopic("topic1", 2, 2)
-    
+    val resultFuture = activeController.createTopic("topic1", 2, 2)
+    Await.ready(resultFuture, 5.seconds)
+
+    val entries = activeController.kv.wal.entries(0, activeController.kv.wal.highWaterMark)
+    val records = entries.map(entry => Record.deserialize(new ByteArrayInputStream(entry.data)))
+    assert(records(0) == BrokerHeartbeat("0"))
+    assert(records(1) == BrokerHeartbeat("1"))
+    assert(records(2) == BrokerHeartbeat("2"))
+    assert(records(3) == TopicRecord("topic1", ""))
+    assert(records(4).isInstanceOf[PartitionRecord])
+    assert(records(5).isInstanceOf[PartitionRecord])
   }
 
 }

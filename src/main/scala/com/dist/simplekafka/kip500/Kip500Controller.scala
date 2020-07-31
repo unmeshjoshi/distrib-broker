@@ -3,21 +3,36 @@ package com.dist.simplekafka.kip500
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 
+import com.dist.simplekafka.PartitionReplicas
 import com.dist.simplekafka.kip500.ServerState.ServerState
 import com.dist.simplekafka.kip500.election.{RequestKeys, Vote, VoteResponse}
 import com.dist.simplekafka.kip500.network._
+import com.dist.simplekafka.util.AdminUtils
 
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.Promise
+import scala.concurrent.{Future, Promise}
 
 object ServerState extends Enumeration {
   type ServerState = Value
   val LOOKING, FOLLOWING, LEADING = Value
 }
 
+import scala.jdk.CollectionConverters._
+
 class Controller(val config: Config) extends Thread with Logging {
   def createTopic(topicName: String, noOfPartitions: Int, replicationFactor: Int) = {
-
+    val keys = kv.activeBrokers.keys().asScala.map(_.toInt)
+    val partitionAssignments = AdminUtils.assignReplicasToBrokers(keys.toList, noOfPartitions, replicationFactor)
+    val partitionIds = partitionAssignments.toMap.keySet
+    val partitionRecords = partitionIds.map(partitionId => {
+      val replicas = partitionAssignments(partitionId)
+      val leader = replicas.head
+      PartitionRecord(partitionId, topicName, replicas.toList, leader)
+    })
+    val topicRecordFuture = leader.propose(TopicRecord(topicName, ""))
+    val partitionRecordFutures = partitionRecords.map(partitionRecord => leader.propose(partitionRecord))
+    import scala.concurrent.ExecutionContext.Implicits.global
+    Future.sequence(partitionRecordFutures + topicRecordFuture)
   }
 
   def brokerHeartbeat(brokerHeartbeat: BrokerHeartbeat) = {
@@ -27,7 +42,7 @@ class Controller(val config: Config) extends Thread with Logging {
 
 
   def put(key: String, value: String) = {
-    propose(SetValueCommand(key, value))
+    propose(SetValueRecord(key, value))
   }
 
   def shutdown(): Any = {
@@ -77,6 +92,7 @@ class Controller(val config: Config) extends Thread with Logging {
       AppendEntriesResponse(lastLogEntry, false)
 
     } else {
+      info(s"Writing walEntry ${appendEntryRequest.walEntry} in ${this.config.serverId} ")
       this.kv.wal.writeEntry(appendEntryRequest.walEntry)
       updateCommitIndex(appendEntryRequest)
     }
@@ -119,7 +135,7 @@ class Controller(val config: Config) extends Thread with Logging {
     val previousCommitIndex = commitIndex
     commitIndex = index
     kv.wal.highWaterMark = commitIndex
-    if (commitIndex <= kv.wal.lastLogEntryId) {
+    if (commitIndex <= kv.wal.lastLogEntryId && commitIndex > 0) {
       info(s"Applying wal entries in ${config.serverId} from ${previousCommitIndex} to ${commitIndex}")
       val entries = kv.wal.entries(previousCommitIndex, commitIndex)
       applyEntries(entries)
@@ -149,7 +165,7 @@ class Controller(val config: Config) extends Thread with Logging {
     propose(BrokerHeartbeat(clientId))
   }
 
-  def propose(command:Command) = {
+  def propose(command:Record) = {
     if (leader == null) throw new RuntimeException("Can not propose to non leader")
 
     //propose is synchronous as of now so value will be applied
@@ -230,7 +246,7 @@ class Leader(config: Config, client: NetworkClient, val self: Controller) extend
 
   var lastEntryId: Long = self.kv.wal.lastLogEntryId
 
-  def propose(setValueCommand: Command) = {
+  def propose(setValueCommand: Record) = {
     val resultPromise = Promise[Any]()
     val data = setValueCommand.serialize()
     val entryId = appendToLocalLog(data)

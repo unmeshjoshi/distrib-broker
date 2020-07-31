@@ -25,7 +25,7 @@ class ControllerState(walDir: File) extends Logging {
   var leaseTracker:LeaseTracker = new FollowerLeaseTracker(activeBrokers)
 
   def put(key: String, value: String): Unit = {
-    wal.writeEntry(SetValueCommand(key, value).serialize())
+    wal.writeEntry(SetValueRecord(key, value).serialize())
   }
 
   def get(key: String): Option[String] = kv.get(key)
@@ -47,9 +47,9 @@ class ControllerState(walDir: File) extends Logging {
 
   def applyEntry(entry: WalEntry) = {
     if (entry.entryType == EntryType.data) {
-      val command = Command.deserialize(new ByteArrayInputStream(entry.data))
+      val command = Record.deserialize(new ByteArrayInputStream(entry.data))
       command match {
-        case setValueCommand: SetValueCommand => {
+        case setValueCommand: SetValueRecord => {
             kv.put(setValueCommand.key, setValueCommand.value)
         }
         case registerClientCommand: BrokerHeartbeat => {
@@ -57,6 +57,15 @@ class ControllerState(walDir: File) extends Logging {
           info(s"Registering Active Broker with id ${brokerId}")
           leaseTracker.addLease(new Lease(brokerId, TimeUnit.SECONDS.toNanos(2)))
           brokerId
+        }
+        case topicRecord: TopicRecord => {
+          println(topicRecord)
+        }
+        case partitionRecord: PartitionRecord => {
+          println(partitionRecord)
+        }
+        case fenceBroker:FenceBroker => {
+          println(fenceBroker)
         }
       }
     }
