@@ -13,7 +13,8 @@ import com.dist.simplekafka.util.ZkUtils.Broker
 
 import scala.collection.mutable.ListBuffer
 
-class Server(val config:Config, val zookeeperClient: ZookeeperClient, val controller:ZkController, val socketServer: SimpleSocketServer, kip500Mode:Boolean = false) extends Logging {
+class Server(val config:Config, val zookeeperClient: ZookeeperClient, val controller:ZkController, val socketServer: SimpleSocketServer,
+             kip500Mode:Boolean = false) extends Logging {
 
   val executor = new ScheduledThreadPoolExecutor(1);
 

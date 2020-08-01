@@ -62,7 +62,10 @@ class ProducerConsumerTest extends ZookeeperTestHarness with Logging {
   }
 
   private def liveBrokersIn(broker1: Server) = {
-    broker1.socketServer.kafkaApis.aliveBrokers.size
+    if (broker1.socketServer.kafkaApis.aliveBrokers ==  null)
+      0
+    else
+      broker1.socketServer.kafkaApis.aliveBrokers.size
   }
 
 
