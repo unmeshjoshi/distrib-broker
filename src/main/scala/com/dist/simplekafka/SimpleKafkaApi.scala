@@ -6,11 +6,12 @@ import com.dist.simplekafka.server.Config
 import com.dist.simplekafka.util.ZkUtils.Broker
 
 import scala.collection.Set
+import scala.collection.mutable.ListBuffer
 import scala.jdk.CollectionConverters._
 
 
 class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) {
-  var aliveBrokers = List[Broker]()
+  var aliveBrokers:scala.collection.mutable.ListBuffer[Broker] = _
   var leaderCache = new java.util.HashMap[TopicAndPartition, PartitionInfo]
   val DefaultReplicaId = -1
 
@@ -23,19 +24,12 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) {
     request.requestId match {
       case RequestKeys.LeaderAndIsrKey => {
         val leaderAndReplicasRequest: LeaderAndReplicaRequest = JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[LeaderAndReplicaRequest])
-        leaderAndReplicasRequest.leaderReplicas.foreach(leaderAndReplicas ⇒ {
-          val topicAndPartition = leaderAndReplicas.topicPartition
-          val leader = leaderAndReplicas.partitionStateInfo.leader
-          if (leader.id == config.brokerId)
-            replicaManager.makeLeader(topicAndPartition)
-          else
-            replicaManager.makeFollower(topicAndPartition, leader)
-        })
+        handleLeaderAndReplicas(leaderAndReplicasRequest.leaderReplicas)
         RequestOrResponse(RequestKeys.LeaderAndIsrKey, "", request.correlationId)
       }
       case RequestKeys.UpdateMetadataKey ⇒ {
         val updateMetadataRequest: UpdateMetadataRequest = JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[UpdateMetadataRequest])
-        aliveBrokers = updateMetadataRequest.aliveBrokers
+        aliveBrokers = ListBuffer.from(updateMetadataRequest.aliveBrokers)
         updateMetadataRequest.leaderReplicas.foreach(leaderReplica ⇒ {
           leaderCache.put(leaderReplica.topicPartition, leaderReplica.partitionStateInfo)
         })
@@ -76,6 +70,17 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) {
       }
       case _ ⇒ RequestOrResponse(0, "Unknown Request", request.correlationId)
     }
+  }
+
+  def handleLeaderAndReplicas(leaderReplicas:List[LeaderAndReplicas]) = {
+    leaderReplicas.foreach(leaderAndReplicas ⇒ {
+      val topicAndPartition = leaderAndReplicas.topicPartition
+      val leader = leaderAndReplicas.partitionStateInfo.leader
+      if (leader.id == config.brokerId)
+        replicaManager.makeLeader(topicAndPartition)
+      else
+        replicaManager.makeFollower(topicAndPartition, leader)
+    })
   }
 }
 

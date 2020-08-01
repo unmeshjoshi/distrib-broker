@@ -19,26 +19,20 @@ class ProducerConsumerKIP500Test extends ZookeeperTestHarness with Logging {
     val broker1 = newBroker(1, activeControllerAddress)
     val broker2 = newBroker(2, activeControllerAddress)
     val broker3 = newBroker(3, activeControllerAddress)
-    val broker4 = newBroker(4, activeControllerAddress)
-    val broker5 = newBroker(5, activeControllerAddress)
 
     broker1.startup() //broker1 will become controller as its the first one to start
     broker2.startup()
     broker3.startup()
-    broker4.startup()
-    broker5.startup()
 
-    TestUtils.waitUntilTrue(()⇒ {
-      broker1.controller.liveBrokers.size == 5
-    }, "Waiting for all brokers to be discovered by the controller")
+    assertAllBrokerKnowAboutLiveBrokers(broker1, broker2, broker3)
 
     new CreateTopicCommand(broker1.zookeeperClient).createTopicKip500("topic1", 2, 3, activeControllerAddress, broker1.socketServer)
 
     TestUtils.waitUntilTrue(() ⇒ {
-        liveBrokersIn(broker1) == 5 && liveBrokersIn(broker2) == 5 && liveBrokersIn(broker3) == 5
-    }, "waiting till topic metadata is propogated to all the servers", 2000 )
+      leaderCache(broker1).size() == 2 && leaderCache(broker2).size() == 2 && leaderCache(broker3).size() == 2
+    }, "waiting till topic metadata is propogated to all the servers", 2000)
 
-    assert(leaderCache(broker1) ==  leaderCache(broker2) &&  leaderCache(broker2) == leaderCache(broker3))
+    assert(leaderCache(broker1) == leaderCache(broker2) && leaderCache(broker2) == leaderCache(broker3))
 
     val bootstrapBroker = InetAddressAndPort.create(broker2.config.hostName, broker2.config.port)
     val simpleProducer = new SimpleProducer(bootstrapBroker)
@@ -61,6 +55,12 @@ class ProducerConsumerKIP500Test extends ZookeeperTestHarness with Logging {
     assert(messages.get("key3") == "message3")
   }
 
+  private def assertAllBrokerKnowAboutLiveBrokers(brokers: Server*) = {
+    TestUtils.waitUntilTrue(() ⇒ {
+      brokers.toList.map(_.controller.liveBrokers.size == brokers.size).reduce(_ && _)
+    }, "Waiting for all brokers to be discovered by the controller")
+  }
+
   private def leaderCache(broker: Server) = {
     broker.socketServer.kafkaApis.leaderCache
   }
@@ -70,7 +70,7 @@ class ProducerConsumerKIP500Test extends ZookeeperTestHarness with Logging {
   }
 
 
-  private def newBroker(brokerId: Int, activeControllerAddress:InetAddressAndPort) = {
+  private def newBroker(brokerId: Int, activeControllerAddress: InetAddressAndPort) = {
     val config = Config(brokerId, new Networks().hostname(), TestUtils.choosePort(), zkConnect, List(TestUtils.tempDir().getAbsolutePath))
     config.kip500ControllerAddress = activeControllerAddress
 

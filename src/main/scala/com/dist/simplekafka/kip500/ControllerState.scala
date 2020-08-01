@@ -55,7 +55,7 @@ class ControllerState(walDir: File) extends Logging {
         case brokerHeartbeat: BrokerHeartbeat => {
           val brokerId = brokerHeartbeat.brokerId
           info(s"Registering Active Broker with id ${brokerId}")
-          leaseTracker.addLease(new Lease(brokerId, TimeUnit.SECONDS.toNanos(2)))
+          leaseTracker.addLease(new Lease(brokerId, TimeUnit.SECONDS.toNanos(2000)))
           brokerId
         }
         case topicRecord: TopicRecord => {

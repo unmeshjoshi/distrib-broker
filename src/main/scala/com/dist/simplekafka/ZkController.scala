@@ -18,6 +18,8 @@ class ZkController(val zookeeperClient: ZookeeperClient, val brokerId: Int, sock
   var liveBrokers: Set[Broker] = Set()
   var currentLeader = -1
 
+  def getLiveBroker(brokerId:Int) = liveBrokers.find(_.id == brokerId)
+
   def startup(): Unit = {
     zookeeperClient.subscribeControllerChangeListner(this)
     elect()

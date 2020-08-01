@@ -7,6 +7,8 @@ import com.dist.simplekafka.server.Config
 import com.dist.simplekafka.util.ZkUtils.Broker
 import com.dist.util.Networks
 
+import scala.collection.mutable.ListBuffer
+
 class SimpleKafkaApiTest extends ZookeeperTestHarness {
 
   test("should create leader and follower replicas") {
@@ -45,7 +47,7 @@ class SimpleKafkaApiTest extends ZookeeperTestHarness {
     val simpleKafkaApi = new SimpleKafkaApi(config, replicaManager)
     val aliveBrokers = List(Broker(0, "10.10.10.10", 8000), Broker(1, "10.10.10.11", 8000), Broker(2, "10.10.10.12", 8000))
     val request = RequestOrResponse(RequestKeys.GetMetadataKey, JsonSerDes.serialize(TopicMetadataRequest("topic1")), 1)
-    simpleKafkaApi.aliveBrokers = aliveBrokers
+    simpleKafkaApi.aliveBrokers = ListBuffer.from(aliveBrokers)
     simpleKafkaApi.leaderCache = new java.util.HashMap[TopicAndPartition, PartitionInfo]
     simpleKafkaApi.leaderCache.put(TopicAndPartition("topic1", 0), PartitionInfo(Broker(0, "10.10.10.10", 8000), List(Broker(0, "10.10.10.10", 8000), Broker(1, "10.10.10.11", 8000))))
     simpleKafkaApi.leaderCache.put(TopicAndPartition("topic1", 1), PartitionInfo(Broker(1, "10.10.10.10", 8000), List(Broker(0, "10.10.10.10", 8000), Broker(1, "10.10.10.11", 8000))))
