@@ -1,12 +1,14 @@
-package com.dist.simplekafka.kip500
+package com.dist.simplekafka
 
+import com.dist.common.TestUtils
 import com.dist.simplekafka.kip500.network.{Config, Peer}
+import com.dist.simplekafka.kip500.{Kip500Controller, ServerState}
 import com.dist.simplekafka.network.InetAddressAndPort
-import org.scalatest.FunSuite
+import com.dist.util.Networks
 
-class ReelectionTest extends FunSuite {
+object Kip500ControllerTestUtil {
 
-  test("should update commitIndex after quorum writes") {
+  def startAndWaitForControllerQuorum() = {
     val address = new Networks().ipv4Address
     val ports = TestUtils.choosePorts(3)
     val peerAddr1 = InetAddressAndPort(address, ports(0))
@@ -37,14 +39,7 @@ class ReelectionTest extends FunSuite {
       peer3.state == ServerState.LEADING && peer1.state == ServerState.FOLLOWING && peer2.state == ServerState.FOLLOWING
     }, "Waiting for leader to be selected")
 
-    peer3.put("k1", "v1")
-
-    val value = peer3.get("k1")
-    assert(value == Some("v1"))
-
-    peer3.shutdown()
-
-    Thread.sleep(10000)
+    peer3.config.serverAddress
   }
 
 }

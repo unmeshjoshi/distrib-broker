@@ -12,7 +12,7 @@ import com.dist.simplekafka.util.ZkUtils.Broker
 
 import scala.util.control.Breaks
 
-class Controller(val zookeeperClient: ZookeeperClient, val brokerId: Int, socketServer: SimpleSocketServer) {
+class ZkController(val zookeeperClient: ZookeeperClient, val brokerId: Int, socketServer: SimpleSocketServer) {
 
   val correlationId = new AtomicInteger(0)
   var liveBrokers: Set[Broker] = Set()

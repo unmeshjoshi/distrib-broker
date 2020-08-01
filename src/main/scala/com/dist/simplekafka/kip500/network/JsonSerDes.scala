@@ -1,5 +1,6 @@
 package com.dist.simplekafka.kip500.network
 
+import com.dist.simplekafka.network.InetAddressAndPort
 import com.fasterxml.jackson.annotation.{JsonAutoDetect, PropertyAccessor}
 import com.fasterxml.jackson.core.`type`.TypeReference
 import com.fasterxml.jackson.databind.module.SimpleModule

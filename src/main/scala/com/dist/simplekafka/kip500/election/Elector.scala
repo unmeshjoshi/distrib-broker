@@ -1,7 +1,7 @@
 package com.dist.simplekafka.kip500.election
 
 import com.dist.simplekafka.kip500.Logging
-import com.dist.simplekafka.kip500.network.InetAddressAndPort
+import com.dist.simplekafka.network.InetAddressAndPort
 
 class Elector(noOfServers: Int) extends Logging {
   def elect(votes: Map[InetAddressAndPort, Vote]): ElectionResult = {

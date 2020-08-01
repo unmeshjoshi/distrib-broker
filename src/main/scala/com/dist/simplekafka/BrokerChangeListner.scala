@@ -5,7 +5,7 @@ import java.util
 import com.dist.simplekafka.common.Logging
 import org.I0Itec.zkclient.IZkChildListener
 
-class BrokerChangeListener(controller:Controller, zookeeperClient:ZookeeperClient) extends IZkChildListener with Logging {
+class BrokerChangeListener(controller:ZkController, zookeeperClient:ZookeeperClient) extends IZkChildListener with Logging {
   this.logIdent = "[BrokerChangeListener on Controller " + controller.brokerId + "]: "
 
   import scala.jdk.CollectionConverters._

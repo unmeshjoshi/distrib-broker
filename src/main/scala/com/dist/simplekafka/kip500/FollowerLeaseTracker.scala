@@ -2,7 +2,7 @@ package com.dist.simplekafka.kip500
 
 import java.util.concurrent.ConcurrentHashMap
 
-class FollowerLeaseTracker(var leases: ConcurrentHashMap[String, Lease]) extends LeaseTracker {
+class FollowerLeaseTracker(var leases: ConcurrentHashMap[Int, Lease]) extends LeaseTracker {
   override def expireLeases(): Unit = {
   }
 

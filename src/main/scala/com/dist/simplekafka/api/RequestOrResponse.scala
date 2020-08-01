@@ -10,6 +10,8 @@ object Request {
 
 
 object RequestKeys {
+  val BrokerHeartbeat: Short = 9
+
   val ProduceKey: Short = 0
   val FetchKey: Short = 1
   val OffsetsKey: Short = 2

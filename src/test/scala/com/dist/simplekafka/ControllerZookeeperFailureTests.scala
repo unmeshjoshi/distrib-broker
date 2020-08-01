@@ -65,7 +65,7 @@ class ControllerZookeeperFailureTests extends ZookeeperTestHarness {
     val zookeeperClient: ZookeeperClientImpl = new ZookeeperClientImpl(config)
     val replicaManager = new ReplicaManager(config)
     val socketServer1 = new TestSocketServer(config)
-    val controller = new Controller(zookeeperClient, config.brokerId, socketServer1)
+    val controller = new ZkController(zookeeperClient, config.brokerId, socketServer1)
     new Server(config, zookeeperClient, controller, socketServer1)
   }
 }

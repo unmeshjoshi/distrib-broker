@@ -1,6 +1,7 @@
 package com.dist.simplekafka.kip500.network
 
 import com.dist.simplekafka.kip500.HeartBeatScheduler
+import com.dist.simplekafka.network.InetAddressAndPort
 
 case class Peer(id:Int, address:InetAddressAndPort)
 

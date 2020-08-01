@@ -2,10 +2,11 @@ package com.dist.simplekafka.kip500
 
 import java.io.ByteArrayInputStream
 
-import com.dist.simplekafka.kip500.network.{Config, InetAddressAndPort, Peer}
+import com.dist.simplekafka.kip500.network.{Config, Peer}
+import com.dist.simplekafka.network.InetAddressAndPort
 import org.scalatest.FunSuite
 
-import scala.concurrent.Await
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 
 class Kip500ControllerTest extends FunSuite {
@@ -21,13 +22,13 @@ class Kip500ControllerTest extends FunSuite {
       val serverList = List(Peer(1, peerAddr1), Peer(2, peerAddr2), Peer(3, peerAddr3))
 
       val config1 = Config(1, peerAddr1, serverList, TestUtils.tempDir())
-      val peer1 = new Controller(config1)
+      val peer1 = new Kip500Controller(config1)
 
       val config2 = Config(2, peerAddr2, serverList, TestUtils.tempDir())
-      val peer2 = new Controller(config2)
+      val peer2 = new Kip500Controller(config2)
 
       val config3 = Config(3, peerAddr3, serverList, TestUtils.tempDir())
-      val peer3 = new Controller(config3)
+      val peer3 = new Kip500Controller(config3)
 
       peer1.startListening()
       peer2.startListening()
@@ -59,13 +60,13 @@ class Kip500ControllerTest extends FunSuite {
     val serverList = List(Peer(1, peerAddr1), Peer(2, peerAddr2), Peer(3, peerAddr3))
 
     val config1 = Config(1, peerAddr1, serverList, TestUtils.tempDir())
-    val peer1 = new Controller(config1)
+    val peer1 = new Kip500Controller(config1)
 
     val config2 = Config(2, peerAddr2, serverList, TestUtils.tempDir())
-    val peer2 = new Controller(config2)
+    val peer2 = new Kip500Controller(config2)
 
     val config3 = Config(3, peerAddr3, serverList, TestUtils.tempDir())
-    val activeController = new Controller(config3)
+    val activeController = new Kip500Controller(config3)
 
     peer1.startListening()
     peer2.startListening()
@@ -79,9 +80,9 @@ class Kip500ControllerTest extends FunSuite {
       activeController.state == ServerState.LEADING && peer1.state == ServerState.FOLLOWING && peer2.state == ServerState.FOLLOWING
     }, "Waiting for leader to be selected")
 
-    val future = activeController.brokerHeartbeat(BrokerHeartbeat("0"))
+    val future = activeController.brokerHeartbeat(BrokerHeartbeat(0, InetAddressAndPort(address, 8080)))
     Await.ready(future, 5.second)
-    val value = activeController.kv.activeBrokers.get("0")
+    val value = activeController.kv.activeBrokers.get(0)
     assert(value.getName == "0")
   }
 
@@ -96,13 +97,13 @@ class Kip500ControllerTest extends FunSuite {
     val serverList = List(Peer(1, peerAddr1), Peer(2, peerAddr2), Peer(3, peerAddr3))
 
     val config1 = Config(1, peerAddr1, serverList, TestUtils.tempDir())
-    val peer1 = new Controller(config1)
+    val peer1 = new Kip500Controller(config1)
 
     val config2 = Config(2, peerAddr2, serverList, TestUtils.tempDir())
-    val peer2 = new Controller(config2)
+    val peer2 = new Kip500Controller(config2)
 
     val config3 = Config(3, peerAddr3, serverList, TestUtils.tempDir())
-    val peer3 = new Controller(config3)
+    val peer3 = new Kip500Controller(config3)
 
     peer1.startListening()
     peer2.startListening()
@@ -118,7 +119,7 @@ class Kip500ControllerTest extends FunSuite {
 
     val activeController = peer3
 
-    val future = activeController.brokerHeartbeat(BrokerHeartbeat("0"))
+    val future = activeController.brokerHeartbeat(BrokerHeartbeat(0, InetAddressAndPort(address, 8080)))
     Await.ready(future, 5.second)
     val controllerWal = activeController.kv.wal
 
@@ -149,13 +150,13 @@ class Kip500ControllerTest extends FunSuite {
     val serverList = List(Peer(1, peerAddr1), Peer(2, peerAddr2), Peer(3, peerAddr3))
 
     val config1 = Config(1, peerAddr1, serverList, TestUtils.tempDir())
-    val peer1 = new Controller(config1)
+    val peer1 = new Kip500Controller(config1)
 
     val config2 = Config(2, peerAddr2, serverList, TestUtils.tempDir())
-    val peer2 = new Controller(config2)
+    val peer2 = new Kip500Controller(config2)
 
     val config3 = Config(3, peerAddr3, serverList, TestUtils.tempDir())
-    val peer3 = new Controller(config3)
+    val peer3 = new Kip500Controller(config3)
 
     peer1.startListening()
     peer2.startListening()
@@ -171,13 +172,15 @@ class Kip500ControllerTest extends FunSuite {
 
     val activeController = peer3
 
-    val future = activeController.brokerHeartbeat(BrokerHeartbeat("0"))
+    val brokerPorts = TestUtils.choosePorts(3)
+
+    val future = activeController.brokerHeartbeat(BrokerHeartbeat(0, InetAddressAndPort(address, brokerPorts(0))))
     Await.ready(future, 5.second)
 
-    val future2 = activeController.brokerHeartbeat(BrokerHeartbeat("1"))
+    val future2 = activeController.brokerHeartbeat(BrokerHeartbeat(1, InetAddressAndPort(address, brokerPorts(1))))
     Await.ready(future2, 5.second)
 
-    val future3 = activeController.brokerHeartbeat(BrokerHeartbeat("2"))
+    val future3: Future[Any] = activeController.brokerHeartbeat(BrokerHeartbeat(2, InetAddressAndPort(address, brokerPorts(2))))
     Await.ready(future3, 5.second)
 
     val controllerWal = activeController.kv.wal
@@ -193,9 +196,9 @@ class Kip500ControllerTest extends FunSuite {
 
     val entries = activeController.kv.wal.entries(0, activeController.kv.wal.highWaterMark)
     val records = entries.map(entry => Record.deserialize(new ByteArrayInputStream(entry.data)))
-    assert(records(0) == BrokerHeartbeat("0"))
-    assert(records(1) == BrokerHeartbeat("1"))
-    assert(records(2) == BrokerHeartbeat("2"))
+    assert(records(0) == BrokerHeartbeat(0, InetAddressAndPort(address, brokerPorts(0))))
+    assert(records(1) == BrokerHeartbeat(1, InetAddressAndPort(address, brokerPorts(1))))
+    assert(records(2) == BrokerHeartbeat(2, InetAddressAndPort(address, brokerPorts(2))))
     assert(records(3) == TopicRecord("topic1", ""))
     assert(records(4).isInstanceOf[PartitionRecord])
     assert(records(5).isInstanceOf[PartitionRecord])

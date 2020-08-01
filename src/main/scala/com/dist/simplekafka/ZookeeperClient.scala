@@ -37,7 +37,7 @@ trait ZookeeperClient {
 
   def subscribeBrokerChangeListener(listener: IZkChildListener): Option[List[String]]
 
-  def subscribeControllerChangeListner(controller: Controller): Unit
+  def subscribeControllerChangeListner(controller: ZkController): Unit
 
   def registerSelf()
 
@@ -190,14 +190,14 @@ private[simplekafka] class ZookeeperClientImpl(config: Config) extends Zookeeper
     }
   }
 
-  override def subscribeControllerChangeListner(controller: Controller): Unit = {
+  override def subscribeControllerChangeListner(controller: ZkController): Unit = {
     zkClient.subscribeDataChanges(ControllerPath, new ControllerChangeListener(controller))
   }
 
   override def shutdown(): Unit = zkClient.close()
 
 
-  class ControllerChangeListener(controller: Controller) extends IZkDataListener {
+  class ControllerChangeListener(controller: ZkController) extends IZkDataListener {
     override def handleDataChange(dataPath: String, data: Any): Unit = {
       val existingControllerId:String = zkClient.readData(dataPath)
       controller.setCurrent(existingControllerId.toInt)

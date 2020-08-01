@@ -1,7 +1,8 @@
 package com.dist.simplekafka.kip500
 
 import com.dist.simplekafka.kip500.election.Vote
-import com.dist.simplekafka.kip500.network.{Config, InetAddressAndPort, Peer}
+import com.dist.simplekafka.kip500.network.{Config, Peer}
+import com.dist.simplekafka.network.InetAddressAndPort
 import org.scalatest.FunSuite
 
 class ServerTest extends FunSuite {
@@ -17,7 +18,7 @@ class ServerTest extends FunSuite {
     val serverList = List(Peer(1, peerAddr1), Peer(2, peerAddr2), Peer(3, peerAddr3))
 
     val config = Config(1, peerAddr1, serverList, TestUtils.tempDir())
-    val server = new Controller(config)
+    val server = new Kip500Controller(config)
     assert(server.state == ServerState.LOOKING)
   }
 
@@ -33,7 +34,7 @@ class ServerTest extends FunSuite {
 
     val config = Config(1, peerAddr1, serverList, TestUtils.tempDir())
 
-    val server = new Controller(config)
+    val server = new Kip500Controller(config)
     assert(server.state == ServerState.LOOKING)
 
     server.start()
@@ -51,7 +52,7 @@ class ServerTest extends FunSuite {
 
     val config = Config(1, peerAddr1, serverList, TestUtils.tempDir())
 
-    val server = new Controller(config)
+    val server = new Kip500Controller(config)
     assert(server.currentVote.get() == Vote(config.serverId, server.kv.wal.lastLogEntryId))
   }
 }

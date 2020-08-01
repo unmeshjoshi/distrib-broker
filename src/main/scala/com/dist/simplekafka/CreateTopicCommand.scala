@@ -2,23 +2,29 @@ package com.dist.simplekafka
 
 import java.util.Random
 
+import com.dist.simplekafka.api.RequestOrResponse
+import com.dist.simplekafka.common.Logging
+import com.dist.simplekafka.kip500.CreateTopicRequest
+import com.dist.simplekafka.kip500.election.RequestKeys
+import com.dist.simplekafka.kip500.network.JsonSerDes
+import com.dist.simplekafka.network.InetAddressAndPort
 import com.dist.simplekafka.util.AdminUtils.rand
 
 import scala.collection.{Map, Seq, mutable}
 
 case class PartitionReplicas(partitionId:Int, brokerIds:List[Int])
 
-class CreateTopicCommand(zookeeperClient:ZookeeperClient, partitionAssigner:ReplicaAssignmentStrategy = new ReplicaAssignmentStrategy()) {
+class CreateTopicCommand(zookeeperClient:ZookeeperClient,  partitionAssigner:ReplicaAssignmentStrategy = new ReplicaAssignmentStrategy()) extends Logging {
   val rand = new Random
 
   def createTopic(topicName:String, noOfPartitions:Int, replicationFactor:Int) = {
-    val brokerIds = zookeeperClient.getAllBrokerIds()
-    //get list of brokers
-    //assign replicas to partition
-    val partitionReplicas: Set[PartitionReplicas] = assignReplicasToBrokers(brokerIds.toList, noOfPartitions, replicationFactor)
-    // register topic with partition assignments to zookeeper
-    zookeeperClient.setPartitionReplicasForTopic(topicName, partitionReplicas)
+    createTopicInZookeeper(topicName, noOfPartitions, replicationFactor)
+  }
 
+  def createTopicKip500(topicName:String, noOfPartitions:Int, replicationFactor:Int, kip500ControllerAddress:InetAddressAndPort, socketServer:SimpleSocketServer): Unit = {
+    val createTopicRequest = RequestOrResponse(RequestKeys.CreateTopic.asInstanceOf[Short], JsonSerDes.serialize(CreateTopicRequest("topic1", 2, 3)), 0)
+    val response = socketServer.sendReceiveTcp(createTopicRequest, kip500ControllerAddress)
+    info(s"Created Topic successfully ${response.messageBodyJson}")
   }
 
   //on new topic creation
@@ -26,6 +32,15 @@ class CreateTopicCommand(zookeeperClient:ZookeeperClient, partitionAssigner:Repl
   //select leader for each partition
   //send metadata request with leader and isr to all the brokers
 
+
+  private def createTopicInZookeeper(topicName: String, noOfPartitions: Int, replicationFactor: Int) = {
+    val brokerIds = zookeeperClient.getAllBrokerIds()
+    //get list of brokers
+    //assign replicas to partition
+    val partitionReplicas: Set[PartitionReplicas] = assignReplicasToBrokers(brokerIds.toList, noOfPartitions, replicationFactor)
+    // register topic with partition assignments to zookeeper
+    zookeeperClient.setPartitionReplicasForTopic(topicName, partitionReplicas)
+  }
 
   /**
    * There are 2 goals of replica assignment:

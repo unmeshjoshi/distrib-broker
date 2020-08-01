@@ -1,5 +1,7 @@
 package com.dist.simplekafka.server
 
+import com.dist.simplekafka.network.InetAddressAndPort
+
 import scala.collection.Map
 
 case class Config(brokerId: Int,
@@ -8,10 +10,12 @@ case class Config(brokerId: Int,
                   zkConnect: String,
                   val logDirs:List[String],
                   zkSessionTimeoutMs: Int = 6000,
-                  zkConnectionTimeoutMs: Int = 6000,
-                  controllerMessageQueueSize:Int = 10,
-                  val controllerSocketTimeoutMs: Int = 10
+                  zkConnectionTimeoutMs: Int = 6000
                   ) {
+
+
+  var kip500ControllerAddress:InetAddressAndPort = null
+
   val offsetsTopicNumPartitions: Int = 50
 
 

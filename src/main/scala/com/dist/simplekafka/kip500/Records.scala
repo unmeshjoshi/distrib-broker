@@ -64,28 +64,30 @@ case class SetValueRecord(val key:String, val value:String, val clientId:String 
 object BrokerHeartbeat {
   def deserialize(is:InputStream) = {
     val daos = new DataInputStream(is)
-    val clientId = daos.readUTF()
-    BrokerHeartbeat(clientId)
+    val clientId = daos.readInt()
+    val address = JsonSerDes.deserialize(daos.readUTF(), classOf[InetAddressAndPort])
+    BrokerHeartbeat(clientId, address)
   }
 }
 
-case class BrokerHeartbeat(val brokerId:String = "") extends Record {
+case class BrokerHeartbeat(val brokerId:Int, address:InetAddressAndPort) extends Record {
   override def serialize(): Array[Byte] = {
     val baos = new ByteArrayOutputStream
     val dataStream = new DataOutputStream(baos)
     dataStream.writeInt(RecordType.RegisterBroker)
-    dataStream.writeUTF(brokerId)
+    dataStream.writeInt(brokerId)
+    dataStream.writeUTF(JsonSerDes.serialize(address))
     baos.toByteArray
   }
 }
 
 
-case class FenceBroker(val clientId:String = "") extends Record {
+case class FenceBroker(val clientId:Int) extends Record {
   override def serialize(): Array[Byte] = {
     val baos = new ByteArrayOutputStream
     val dataStream = new DataOutputStream(baos)
     dataStream.writeInt(RecordType.FenceBroker)
-    dataStream.writeUTF(clientId)
+    dataStream.writeInt(clientId)
     baos.toByteArray
   }
 }
@@ -93,7 +95,7 @@ case class FenceBroker(val clientId:String = "") extends Record {
 object FenceBroker {
   def deserialize(is: InputStream): Record = {
     val daos = new DataInputStream(is)
-    val clientId = daos.readUTF()
+    val clientId = daos.readInt()
     FenceBroker(clientId)
   }
 }
@@ -165,4 +167,6 @@ case class PartitionRecord(partitionId:Int, topicId:String, replicas:List[Int], 
   }
 }
 
+case class CreateTopicRequest(topicName:String, noOfPartitions:Int, replicationFactor:Int)
+case class CreateTopicResponse(topicName:String)
 

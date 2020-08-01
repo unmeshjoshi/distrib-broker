@@ -5,9 +5,12 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 import com.dist.simplekafka.kip500.{Logging, Utils}
+import com.dist.simplekafka.network.InetAddressAndPort
+
+import scala.concurrent.Future
 
 
-class SingularUpdateQueue(handler:RequestOrResponse => RequestOrResponse) extends Thread {
+class SingularUpdateQueue(handler:RequestOrResponse => Future[RequestOrResponse]) extends Thread {
   val workQueue = new ArrayBlockingQueue[(RequestOrResponse, SocketIO[RequestOrResponse])](100)
   @volatile var running = true
 
@@ -19,18 +22,20 @@ class SingularUpdateQueue(handler:RequestOrResponse => RequestOrResponse) extend
     workQueue.add((req, socketIo))
   }
 
+  import scala.concurrent.ExecutionContext.Implicits.global
+
   override def run(): Unit = {
     while (running) {
       val (request, socketIo) = workQueue.take()
-      val response = handler(request)
-      socketIo.write(response)
+      val responseFuture:Future[RequestOrResponse] = handler(request)
+      responseFuture.onComplete(response => response.map(r=>socketIo.write(r)))
     }
   }
 
 }
 
 
-class TcpListener(localEp: InetAddressAndPort, handler: RequestOrResponse ⇒ RequestOrResponse) extends Thread with Logging {
+class TcpListener(localEp: InetAddressAndPort, handler: RequestOrResponse ⇒ Future[RequestOrResponse]) extends Thread with Logging {
   val isRunning = new AtomicBoolean(true)
   var serverSocket: ServerSocket = null
 

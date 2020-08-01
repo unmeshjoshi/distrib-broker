@@ -1,21 +1,26 @@
 package com.dist.simplekafka
 
-import akka.actor.ActorSystem
 import com.dist.common.{TestUtils, ZookeeperTestHarness}
 import com.dist.simplekafka.common.Logging
+import com.dist.simplekafka.kip500.CreateTopicRequest
+import com.dist.simplekafka.kip500.election.RequestKeys
+import com.dist.simplekafka.kip500.network.{JsonSerDes, RequestOrResponse}
 import com.dist.simplekafka.network.InetAddressAndPort
 import com.dist.simplekafka.server.Config
 import com.dist.util.Networks
 
 
-class ProducerConsumerTest extends ZookeeperTestHarness with Logging {
+class ProducerConsumerKIP500Test extends ZookeeperTestHarness with Logging {
 
   test("should produce and consumer messages from five broker cluster") {
-    val broker1 = newBroker(1)
-    val broker2 = newBroker(2)
-    val broker3 = newBroker(3)
-    val broker4 = newBroker(4)
-    val broker5 = newBroker(5)
+    val activeControllerAddress = Kip500ControllerTestUtil.startAndWaitForControllerQuorum()
+
+
+    val broker1 = newBroker(1, activeControllerAddress)
+    val broker2 = newBroker(2, activeControllerAddress)
+    val broker3 = newBroker(3, activeControllerAddress)
+    val broker4 = newBroker(4, activeControllerAddress)
+    val broker5 = newBroker(5, activeControllerAddress)
 
     broker1.startup() //broker1 will become controller as its the first one to start
     broker2.startup()
@@ -27,8 +32,7 @@ class ProducerConsumerTest extends ZookeeperTestHarness with Logging {
       broker1.controller.liveBrokers.size == 5
     }, "Waiting for all brokers to be discovered by the controller")
 
-    new CreateTopicCommand(broker1.zookeeperClient).createTopic("topic1", 2, 3)
-
+    new CreateTopicCommand(broker1.zookeeperClient).createTopicKip500("topic1", 2, 3, activeControllerAddress, broker1.socketServer)
 
     TestUtils.waitUntilTrue(() ⇒ {
         liveBrokersIn(broker1) == 5 && liveBrokersIn(broker2) == 5 && liveBrokersIn(broker3) == 5
@@ -66,13 +70,16 @@ class ProducerConsumerTest extends ZookeeperTestHarness with Logging {
   }
 
 
-  private def newBroker(brokerId: Int) = {
+  private def newBroker(brokerId: Int, activeControllerAddress:InetAddressAndPort) = {
     val config = Config(brokerId, new Networks().hostname(), TestUtils.choosePort(), zkConnect, List(TestUtils.tempDir().getAbsolutePath))
+    config.kip500ControllerAddress = activeControllerAddress
+
     val zookeeperClient: ZookeeperClientImpl = new ZookeeperClientImpl(config)
 
     val replicaManager = new ReplicaManager(config)
     val socketServer1 = new SimpleSocketServer(config.brokerId, config.hostName, config.port, new SimpleKafkaApi(config, replicaManager))
     val controller = new ZkController(zookeeperClient, config.brokerId, socketServer1)
-    new Server(config, zookeeperClient, controller, socketServer1)
+    val runInKip500Mode = true
+    new Server(config, zookeeperClient, controller, socketServer1, runInKip500Mode)
   }
 }

@@ -3,7 +3,7 @@ package com.dist.simplekafka.kip500
 import java.util.concurrent.ConcurrentHashMap
 import scala.jdk.CollectionConverters._
 
-class LeaderLeaseTracker(var leases: ConcurrentHashMap[String, Lease], var clock: SystemClock, var server: Controller) extends Logging with LeaseTracker {
+class LeaderLeaseTracker(var leases: ConcurrentHashMap[Int, Lease], var clock: SystemClock, var server: Kip500Controller) extends Logging with LeaseTracker {
   val now: Long = clock.nanoTime
   this.leases.values.forEach((l: Lease) => {
     def foo(l: Lease) = {

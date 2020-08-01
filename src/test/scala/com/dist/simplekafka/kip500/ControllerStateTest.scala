@@ -2,6 +2,7 @@ package com.dist.simplekafka.kip500
 
 import java.util
 
+import com.dist.simplekafka.network.InetAddressAndPort
 import org.scalatest.FunSuite
 
 class ControllerStateTest extends FunSuite {
@@ -22,36 +23,24 @@ class ControllerStateTest extends FunSuite {
     val walDir = TestUtils.tempDir("sessionstest")
     val kv = new ControllerState(walDir)
 
-    val command = BrokerHeartbeat("0")
+    val command = BrokerHeartbeat(0, InetAddressAndPort.create("10.10.10.10", 8080))
     val entryId = 1
     val walEntry = WalEntry(entryId, command.serialize())
     kv.applyEntry(walEntry)
 
-    val session = kv.activeBrokers.get("0")
-    assert(session.getName == "0")
-  }
-
-  test("client id should be walentry id if client id is not passed") {
-    val walDir = TestUtils.tempDir("sessionstest")
-    val kv = new ControllerState(walDir)
-
-    val command = BrokerHeartbeat()
-    val entryId = 1
-    val walEntry = WalEntry(entryId, command.serialize())
-    val clientId = kv.applyEntry(walEntry)
-
-    assert(s"${entryId}" == clientId)
+    val session = kv.activeBrokers.get(0)
+    assert(session.getName == 0)
   }
 
   test("client id should be the one passed by client in RegisterClient request") {
     val walDir = TestUtils.tempDir("sessionstest")
     val kv = new ControllerState(walDir)
 
-    val command = BrokerHeartbeat("client1")
+    val command = BrokerHeartbeat(1, InetAddressAndPort.create("10.10.10.10", 8080))
     val entryId = 1
     val walEntry = WalEntry(entryId, command.serialize())
     val clientId = kv.applyEntry(walEntry)
 
-    assert("client1" == clientId)
+    assert(1 == clientId)
   }
 }

@@ -19,7 +19,7 @@ class ControllerState(walDir: File) extends Logging {
   val kv = new mutable.HashMap[String, String]()
   val wal = WriteAheadLog.create(walDir)
   applyLog()
-  val activeBrokers = new ConcurrentHashMap[String, Lease]
+  val activeBrokers = new ConcurrentHashMap[Int, Lease]
 
 
   var leaseTracker:LeaseTracker = new FollowerLeaseTracker(activeBrokers)
@@ -52,8 +52,8 @@ class ControllerState(walDir: File) extends Logging {
         case setValueCommand: SetValueRecord => {
             kv.put(setValueCommand.key, setValueCommand.value)
         }
-        case registerClientCommand: BrokerHeartbeat => {
-          val brokerId = if (registerClientCommand.brokerId.isEmpty) s"${entry.entryId}" else registerClientCommand.brokerId
+        case brokerHeartbeat: BrokerHeartbeat => {
+          val brokerId = brokerHeartbeat.brokerId
           info(s"Registering Active Broker with id ${brokerId}")
           leaseTracker.addLease(new Lease(brokerId, TimeUnit.SECONDS.toNanos(2)))
           brokerId

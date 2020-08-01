@@ -36,7 +36,7 @@ class TestZookeeperClient(brokerIds:List[Int]) extends ZookeeperClient {
 
   override def shutdown(): Unit = ???
 
-  override def subscribeControllerChangeListner(controller: Controller): Unit = ???
+  override def subscribeControllerChangeListner(controller: ZkController): Unit = ???
 
   override def setPartitionLeaderForTopic(topicName: String, leaderAndReplicas: List[LeaderAndReplicas]): Unit = ???
 

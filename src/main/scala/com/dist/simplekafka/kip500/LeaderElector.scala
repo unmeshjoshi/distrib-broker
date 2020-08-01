@@ -1,12 +1,13 @@
 package com.dist.simplekafka.kip500
 
 import com.dist.simplekafka.kip500.election.{ElectionResult, Elector, RequestKeys, Vote, VoteRequest, VoteResponse}
-import com.dist.simplekafka.kip500.network.{Config, InetAddressAndPort, JsonSerDes, Peer, RequestOrResponse}
+import com.dist.simplekafka.kip500.network.{Config, JsonSerDes, Peer, RequestOrResponse}
+import com.dist.simplekafka.network.InetAddressAndPort
 
 import scala.util.control.Breaks.{break, breakable}
 import scala.jdk.CollectionConverters._
 
-class LeaderElector(config:Config, self:Controller, peers:List[Peer]) extends Logging {
+class LeaderElector(config:Config, self:Kip500Controller, peers:List[Peer]) extends Logging {
   val client = new NetworkClient()
   def lookForLeader(): Unit = {
     self.currentVote.set(Vote(config.serverId, self.kv.wal.lastLogEntryId))

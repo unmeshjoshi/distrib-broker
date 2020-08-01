@@ -9,7 +9,7 @@ class ServerTest extends ZookeeperTestHarness {
   test("should register itself to zookeeper on startup") {
     val config = new Config(1, new Networks().hostname(), TestUtils.choosePort(), zkConnect, List(TestUtils.tempDir().getAbsolutePath))
     val client: ZookeeperClient = mock(classOf[ZookeeperClient])
-    val leaderElector: Controller = mock(classOf[Controller])
+    val leaderElector: ZkController = mock(classOf[ZkController])
     val socketServer:SimpleSocketServer = mock(classOf[SimpleSocketServer])
     var server = new Server(config, client, leaderElector, socketServer)
     server.startup()
@@ -20,7 +20,7 @@ class ServerTest extends ZookeeperTestHarness {
   test("should elect controller on startup") {
     val config = new Config(1, new Networks().hostname(), TestUtils.choosePort(), zkConnect, List(TestUtils.tempDir().getAbsolutePath))
     val client: ZookeeperClient = mock(classOf[ZookeeperClient])
-    val leaderElector: Controller = mock(classOf[Controller])
+    val leaderElector: ZkController = mock(classOf[ZkController])
     val socketServer:SimpleSocketServer = mock(classOf[SimpleSocketServer])
     var server = new Server(config, client, leaderElector, socketServer)
     server.startup()
