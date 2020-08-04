@@ -6,7 +6,6 @@ import java.util.concurrent.atomic.AtomicReference
 import com.dist.simplekafka.kip500.ServerState.ServerState
 import com.dist.simplekafka.kip500.election.{RequestKeys, Vote, VoteResponse}
 import com.dist.simplekafka.kip500.network._
-import com.dist.simplekafka.network.InetAddressAndPort
 import com.dist.simplekafka.util.AdminUtils
 
 import scala.collection.mutable.ListBuffer
@@ -17,48 +16,41 @@ object ServerState extends Enumeration {
   val LOOKING, FOLLOWING, LEADING = Value
 }
 
-import scala.jdk.CollectionConverters._
+trait Consensus {
+  def getState():ServerState
 
-class Kip500Controller(val config: Config) extends Thread with Logging {
-  def createTopic(topicName: String, noOfPartitions: Int, replicationFactor: Int) = {
-    val keys = kv.activeBrokers.keys().asScala.map(_.toInt)
-    val partitionAssignments = AdminUtils.assignReplicasToBrokers(keys.toList, noOfPartitions, replicationFactor)
-    val partitionIds = partitionAssignments.toMap.keySet
-    val partitionRecords = partitionIds.map(partitionId => {
-      val replicas = partitionAssignments(partitionId)
-      val leader = replicas.head
-      PartitionRecord(partitionId, topicName, replicas.toList, leader)
-    })
-    val topicRecordFuture = leader.propose(TopicRecord(topicName, ""))
-    val partitionRecordFutures = partitionRecords.map(partitionRecord => leader.propose(partitionRecord))
-    import scala.concurrent.ExecutionContext.Implicits.global
-    Future.sequence(partitionRecordFutures + topicRecordFuture)
-  }
+  def propose(command: Record): Future[Any]
 
-  def brokerHeartbeat(brokerHeartbeat: BrokerHeartbeat) = {
-    val future = propose(brokerHeartbeat)
-    future
-  }
+  def readEntries(startOffset: Long): List[WalEntry]
 
+  def handleRaftRequest(request: RequestOrResponse): Future[RequestOrResponse]
 
-  def put(key: String, value: String) = {
-    propose(SetValueRecord(key, value))
-  }
+  def start()
 
-  def shutdown(): Any = {
-    if (leader != null) {
-      leader.followerProxies.foreach(p => p.stop())
-    }
+  def shutdown()
 
-    listener.shudown()
-  }
+}
 
+trait StateMachine {
+  def applyEntry(entry: WalEntry)
+
+  def applyEntries(walEntries: List[WalEntry])
+
+  def onBecomingLeader
+
+  def onBecomingFollower
+}
+
+class RaftConsensus(config: Config, stateMachine: StateMachine) extends Consensus with Logging {
   var commitIndex = 0L
+  val wal = WriteAheadLog.create(config.walDir)
 
-  var leader: Leader = _
-
-  val kv = new ControllerState(config.walDir)
   val electionTimeoutChecker = new HeartBeatScheduler(heartBeatCheck)
+
+
+  override def readEntries(startOffset: Long): List[WalEntry] = {
+    wal.entries(startOffset, wal.highWaterMark).toList
+  }
 
   def handleHeartBeatTimeout(): Unit = {
     info(s"Heartbeat timeout starting election in ${config.serverId}")
@@ -76,14 +68,12 @@ class Kip500Controller(val config: Config) extends Thread with Logging {
     }
   }
 
-  @volatile var running = true
-  private val client = new NetworkClient()
 
+  @volatile var running = true
 
   def handleAppendEntries(appendEntryRequest: AppendEntriesRequest) = {
     heartBeatReceived = true
-
-    val lastLogEntry = this.kv.wal.lastLogEntryId
+    val lastLogEntry = this.wal.lastLogEntryId
     if (appendEntryRequest.walEntry == null) { //this is heartbeat
       updateCommitIndex(appendEntryRequest)
       AppendEntriesResponse(lastLogEntry, true)
@@ -93,7 +83,7 @@ class Kip500Controller(val config: Config) extends Thread with Logging {
 
     } else {
       info(s"Writing walEntry ${appendEntryRequest.walEntry} in ${this.config.serverId} ")
-      this.kv.wal.writeEntry(appendEntryRequest.walEntry)
+      this.wal.writeEntry(appendEntryRequest.walEntry)
       updateCommitIndex(appendEntryRequest)
     }
   }
@@ -102,12 +92,10 @@ class Kip500Controller(val config: Config) extends Thread with Logging {
     if (this.commitIndex < appendEntryRequest.commitIndex) {
       updateCommitIndexAndApplyEntries(appendEntryRequest.commitIndex)
     }
-    AppendEntriesResponse(this.kv.wal.lastLogEntryId, true)
+    AppendEntriesResponse(this.wal.lastLogEntryId, true)
   }
 
-  import scala.concurrent.ExecutionContext.Implicits.global
-
-  def requestHandler(request: RequestOrResponse) = {
+  override def handleRaftRequest(request: RequestOrResponse): Future[RequestOrResponse] = {
     if (request.requestId == RequestKeys.RequestVoteKey) {
       val vote = VoteResponse(currentVote.get().id, currentVote.get().lastLogIndex)
       info(s"Responding vote response from ${config.serverId} be ${currentVote}")
@@ -118,33 +106,12 @@ class Kip500Controller(val config: Config) extends Thread with Logging {
       val appendEntriesResponse = handleAppendEntries(appendEntries)
       info(s"Responding AppendEntriesResponse from ${config.serverId} be ${appendEntriesResponse}")
       Future.successful(RequestOrResponse(RequestKeys.AppendEntriesKey, JsonSerDes.serialize(appendEntriesResponse), request.correlationId))
-
-    } else if (request.requestId == RequestKeys.Fetch) {
-      val fetchRequest = JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[FetchRequest])
-      val logEntries = kv.wal.entries(fetchRequest.fromOffset, kv.wal.highWaterMark)
-      info("Responding with log entries " + logEntries)
-      Future.successful(RequestOrResponse(RequestKeys.Fetch, JsonSerDes.serialize(FetchResponse(logEntries.toList)), request.correlationId))
-
-    } else if (request.requestId == RequestKeys.BrokerHeartbeat) {
-      val brokerHeartbeat = JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[BrokerHeartbeat])
-      val future = this.brokerHeartbeat(brokerHeartbeat)
-      future.map(f => {
-        val response = BrokerHeartbeatResponse(kv.activeBrokers.get(brokerHeartbeat.brokerId).expirationTime)
-        RequestOrResponse(RequestKeys.BrokerHeartbeat.asInstanceOf[Short], JsonSerDes.serialize(response), 0)
-      })
-    } else if (request.requestId == RequestKeys.CreateTopic) {
-      val createTopicRequest = JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[CreateTopicRequest])
-      val future = this.createTopic(createTopicRequest.topicName, createTopicRequest.noOfPartitions, createTopicRequest.replicationFactor)
-      future.map(f => {
-        RequestOrResponse(RequestKeys.CreateTopic.asInstanceOf[Short], JsonSerDes.serialize(CreateTopicResponse(createTopicRequest.topicName)), 0)
-      })
-    }
-    else throw new RuntimeException("UnknownRequest")
+    } else throw new IllegalArgumentException(s"Invalid request ${request.requestId}")
   }
 
   def applyEntries(entries: ListBuffer[WalEntry]) = {
     entries.foreach(entry ⇒ {
-      val value = kv.applyEntry(entry)
+      val value = stateMachine.applyEntry(entry)
       val promise: Promise[Any] = pendingRequests.get(entry.entryId)
       if (promise != null) {
         promise.success(value)
@@ -155,28 +122,18 @@ class Kip500Controller(val config: Config) extends Thread with Logging {
   def updateCommitIndexAndApplyEntries(index: Long) = {
     val previousCommitIndex = commitIndex
     commitIndex = index
-    kv.wal.highWaterMark = commitIndex
-    if (commitIndex <= kv.wal.lastLogEntryId && commitIndex > 0) {
+    wal.highWaterMark = commitIndex
+    if (commitIndex <= wal.lastLogEntryId && commitIndex > 0) {
       info(s"Applying wal entries in ${config.serverId} from ${previousCommitIndex} to ${commitIndex}")
-      val entries = kv.wal.entries(previousCommitIndex, commitIndex)
+      val entries = wal.entries(previousCommitIndex, commitIndex)
       applyEntries(entries)
     }
 
   }
 
-  val listener = new TcpListener(config.serverAddress, requestHandler)
-
-  def startListening() = {
-    listener.start()
-  }
-
-  val currentVote = new AtomicReference(Vote(config.serverId, kv.wal.lastLogEntryId))
+  val currentVote = new AtomicReference(Vote(config.serverId, wal.lastLogEntryId))
 
   @volatile var state: ServerState.Value = ServerState.LOOKING
-
-  override def run(): Unit = {
-    transitionTo(ServerState.LOOKING)
-  }
 
   def setPeerState(serverState: ServerState.Value) = this.state = serverState
 
@@ -193,10 +150,6 @@ class Kip500Controller(val config: Config) extends Thread with Logging {
 
   def addPendingRequest(logIndex: Long, promise: Promise[Any]) = {
     pendingRequests.put(logIndex, promise)
-  }
-
-  def get(key: String) = {
-    kv.get(key)
   }
 
 
@@ -222,26 +175,139 @@ class Kip500Controller(val config: Config) extends Thread with Logging {
       electionTimeoutChecker.startWithRandomInterval()
     }
 
-    kv.leaseTracker.stop()
-    if (this.state == ServerState.LEADING) {
-      kv.leaseTracker = new LeaderLeaseTracker(kv.activeBrokers, new SystemClock(), this)
+    if (this.state == ServerState.LEADING)
+      stateMachine.onBecomingLeader
+    else
+      stateMachine.onBecomingFollower
+  }
 
-    } else {
-      kv.leaseTracker = new FollowerLeaseTracker(kv.activeBrokers)
+
+  var leader: Leader = _
+
+  override def shutdown() = {
+    if (leader != null) {
+      leader.followerProxies.foreach(p => p.stop())
     }
-    kv.leaseTracker.start()
+  }
+
+  override def start(): Unit = {
+    transitionTo(ServerState.LOOKING)
+  }
+
+  override def getState(): ServerState = state
+}
+
+class Kip500Controller(val config: Config) extends Thread with StateMachine with Logging {
+  val consensus: Consensus = new RaftConsensus(config, this)
+
+  val listener = new TcpListener(config.serverAddress, requestHandler)
+
+  def startListening() = {
+    listener.start()
+  }
+
+
+  override def run(): Unit = {
+    consensus.start()
+  }
+
+  def shutdown() = {
+    listener.shudown()
+    consensus.shutdown();
+  }
+
+  val controllerState = new ControllerState()
+
+  def applyEntry(entry: WalEntry): Unit = {
+    controllerState.applyEntry(entry)
+  }
+
+  def applyEntries(walEntries: List[WalEntry]): Unit = {
+    controllerState.applyEntries(walEntries)
+  }
+
+  def onBecomingLeader = {
+    controllerState.leaseTracker.stop()
+    controllerState.leaseTracker = new LeaderLeaseTracker(config, controllerState.activeBrokers, new SystemClock(), consensus)
+    controllerState.leaseTracker.start()
+  }
+
+  def onBecomingFollower = {
+    controllerState.leaseTracker.stop()
+    controllerState.leaseTracker = new FollowerLeaseTracker(controllerState.activeBrokers)
+    controllerState.leaseTracker.start()
+  }
+
+  def createTopic(topicName: String, noOfPartitions: Int, replicationFactor: Int) = {
+    val keys = controllerState.getActiveBrokerIds()
+    val partitionRecords = assignReplicasToBrokers(topicName, noOfPartitions, replicationFactor, keys)
+    val topicRecordFuture = consensus.propose(TopicRecord(topicName))
+    val partitionRecordFutures = partitionRecords.map(partitionRecord => consensus.propose(partitionRecord))
+    import scala.concurrent.ExecutionContext.Implicits.global
+    Future.sequence(partitionRecordFutures + topicRecordFuture)
+  }
+
+
+  def brokerHeartbeat(brokerHeartbeat: BrokerHeartbeat) = {
+    val future = consensus.propose(brokerHeartbeat)
+    future
+  }
+
+  private def assignReplicasToBrokers(topicName: String, noOfPartitions: Int, replicationFactor: Int, keys: Iterator[Int]) = {
+    val partitionAssignments = AdminUtils.assignReplicasToBrokers(keys.toList, noOfPartitions, replicationFactor)
+    val partitionIds = partitionAssignments.toMap.keySet
+    val partitionRecords = partitionIds.map(partitionId => {
+      val replicas = partitionAssignments(partitionId)
+      val leader = replicas.head
+      PartitionRecord(partitionId, topicName, replicas.toList, leader)
+    })
+    partitionRecords
+  }
+
+
+  import scala.concurrent.ExecutionContext.Implicits.global
+
+
+  def requestHandler(request: RequestOrResponse): Future[RequestOrResponse] = {
+    if (request.requestId == RequestKeys.RequestVoteKey || request.requestId == RequestKeys.AppendEntriesKey) {
+      return consensus.handleRaftRequest(request)
+    }
+
+    if (request.requestId == RequestKeys.Fetch) {
+      val fetchRequest = JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[FetchRequest])
+      val logEntries = consensus.readEntries(fetchRequest.fromOffset)
+      info("Responding with log entries " + logEntries)
+      Future.successful(RequestOrResponse(RequestKeys.Fetch, JsonSerDes.serialize(FetchResponse(logEntries.toList)), request.correlationId))
+
+    } else if (request.requestId == RequestKeys.BrokerHeartbeat) {
+      val brokerHeartbeat = JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[BrokerHeartbeat])
+      val future = this.brokerHeartbeat(brokerHeartbeat)
+      future.map(f => {
+        val response = BrokerHeartbeatResponse(controllerState.activeBrokers.get(brokerHeartbeat.brokerId).expirationTime)
+        RequestOrResponse(RequestKeys.BrokerHeartbeat.asInstanceOf[Short], JsonSerDes.serialize(response), 0)
+      })
+    } else if (request.requestId == RequestKeys.CreateTopic) {
+      val createTopicRequest = JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[CreateTopicRequest])
+      val future = this.createTopic(createTopicRequest.topicName, createTopicRequest.noOfPartitions, createTopicRequest.replicationFactor)
+      future.map(f => {
+        RequestOrResponse(RequestKeys.CreateTopic.asInstanceOf[Short], JsonSerDes.serialize(CreateTopicResponse(createTopicRequest.topicName)), 0)
+      })
+    } else throw new IllegalArgumentException(s"Invalid requestId ${request.requestId}")
+
   }
 }
 
 case class FetchRequest(fromOffset: Long = 0)
-case class FetchResponse(walEntries:List[WalEntry])
+
+case class FetchResponse(walEntries: List[WalEntry])
 
 case class AppendEntriesRequest(walEntry: WalEntry, commitIndex: Long)
 
 case class AppendEntriesResponse(xid: Long, success: Boolean)
-case class BrokerHeartbeatResponse(LeaseEndTimeMs:Long)
 
-class Leader(config: Config, client: NetworkClient, val self: Kip500Controller) extends Logging {
+case class BrokerHeartbeatResponse(LeaseEndTimeMs: Long)
+
+class Leader(config: Config, client: NetworkClient, val self: RaftConsensus) extends Logging {
   val followerProxies = config.getPeers().map(p ⇒ PeerProxy(p, 0, sendHeartBeat))
 
   def startLeading() = {
@@ -250,7 +316,7 @@ class Leader(config: Config, client: NetworkClient, val self: Kip500Controller) 
 
   def sendHeartBeat(peerProxy: PeerProxy) = {
     info(s"Sending heartbeat from ${config.serverId} to ${peerProxy.peerInfo.id}")
-    val appendEntries = JsonSerDes.serialize(AppendEntriesRequest(null, self.kv.wal.highWaterMark))
+    val appendEntries = JsonSerDes.serialize(AppendEntriesRequest(null, self.wal.highWaterMark))
     val request = RequestOrResponse(RequestKeys.AppendEntriesKey, appendEntries, 0)
     //sendHeartBeat
     val response = client.sendReceive(request, peerProxy.peerInfo.address)
@@ -265,14 +331,14 @@ class Leader(config: Config, client: NetworkClient, val self: Kip500Controller) 
 
   def stopLeading() = followerProxies.foreach(_.stop())
 
-  var lastEntryId: Long = self.kv.wal.lastLogEntryId
+  var lastEntryId: Long = self.wal.lastLogEntryId
 
   def propose(setValueCommand: Record) = {
     val resultPromise = Promise[Any]()
     val data = setValueCommand.serialize()
     val entryId = appendToLocalLog(data)
     self.addPendingRequest(entryId, resultPromise)
-    broadCastAppendEntries(self.kv.wal.entries(entryId - 1, entryId).last)
+    broadCastAppendEntries(self.wal.entries(entryId - 1, entryId).last)
     resultPromise.future
   }
 
@@ -312,7 +378,9 @@ class Leader(config: Config, client: NetworkClient, val self: Kip500Controller) 
   }
 
   private def appendToLocalLog(data: Array[Byte]) = {
-    lastEntryId = self.kv.wal.writeEntry(data)
+    lastEntryId = self.wal.writeEntry(data)
     lastEntryId
   }
+
 }
+

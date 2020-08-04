@@ -20,7 +20,7 @@ class Server(val config:Config, val zookeeperClient: ZookeeperClient, val contro
 
 
   def sendHearbeat() = {
-    val updateMetadataRequest = BrokerHeartbeat(config.brokerId, InetAddressAndPort.create(config.hostName, config.port))
+    val updateMetadataRequest = BrokerHeartbeat(config.brokerId, InetAddressAndPort.create(config.hostName, config.port), 2000)
     val request = RequestOrResponse(com.dist.simplekafka.kip500.election.RequestKeys.BrokerHeartbeat.asInstanceOf[Short], JsonSerDes.serialize(updateMetadataRequest), correlationId.incrementAndGet())
     info(s"Sending heartbeat from broker ${config.brokerId}")
     val response = socketServer.sendReceiveTcp(request, config.kip500ControllerAddress)
@@ -34,14 +34,14 @@ class Server(val config:Config, val zookeeperClient: ZookeeperClient, val contro
   def fetchMetadata() = {
     val updateMetadataRequest = FetchRequest(fetchOffset)
     val request = RequestOrResponse(com.dist.simplekafka.kip500.election.RequestKeys.Fetch.asInstanceOf[Short], JsonSerDes.serialize(updateMetadataRequest), correlationId.incrementAndGet())
-    info(s"Sending fetch request from broker ${config.brokerId}")
+    info(s"Sending fetch request from broker ${config.brokerId} from offset=${fetchOffset}")
     val response = socketServer.sendReceiveTcp(request, config.kip500ControllerAddress)
     val fetchResponse = JsonSerDes.deserialize(response.messageBodyJson, classOf[FetchResponse])
     info(s"Received fetch response in broker ${config.brokerId} ${fetchResponse}")
     fetchResponse.walEntries.foreach(walEntry => {
       applyEntry(walEntry)
     })
-    fetchOffset = fetchResponse.walEntries.last.entryId
+    fetchOffset = fetchResponse.walEntries.last.entryId + 1
   }
 
 
@@ -58,7 +58,7 @@ class Server(val config:Config, val zookeeperClient: ZookeeperClient, val contro
           socketServer.kafkaApis.aliveBrokers += broker
         }
         case topicRecord: TopicRecord => {
-          println(topicRecord)
+          info(s"Applying ${topicRecord}")
         }
         case partitionRecord: PartitionRecord => {
           val leaderBroker = controller.getLiveBroker(partitionRecord.leader).get
@@ -71,7 +71,7 @@ class Server(val config:Config, val zookeeperClient: ZookeeperClient, val contro
           socketServer.kafkaApis.leaderCache.put(topicPartition, PartitionInfo(leaderBroker, replicaBrokers))
         }
         case fenceBroker:FenceBroker => {
-          println(fenceBroker)
+          info(s"Applying ${fenceBroker}")
         }
       }
     }

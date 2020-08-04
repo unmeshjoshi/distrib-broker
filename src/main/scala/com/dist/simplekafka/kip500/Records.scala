@@ -66,17 +66,19 @@ object BrokerHeartbeat {
     val daos = new DataInputStream(is)
     val clientId = daos.readInt()
     val address = JsonSerDes.deserialize(daos.readUTF(), classOf[InetAddressAndPort])
-    BrokerHeartbeat(clientId, address)
+    val ttl = daos.readLong()
+    BrokerHeartbeat(clientId, address, ttl)
   }
 }
 
-case class BrokerHeartbeat(val brokerId:Int, address:InetAddressAndPort) extends Record {
+case class BrokerHeartbeat(val brokerId:Int, address:InetAddressAndPort, ttl:Long) extends Record {
   override def serialize(): Array[Byte] = {
     val baos = new ByteArrayOutputStream
     val dataStream = new DataOutputStream(baos)
     dataStream.writeInt(RecordType.RegisterBroker)
     dataStream.writeInt(brokerId)
     dataStream.writeUTF(JsonSerDes.serialize(address))
+    dataStream.writeLong(ttl)
     baos.toByteArray
   }
 }
@@ -131,7 +133,7 @@ object TopicRecord {
     TopicRecord(topicName, topicId, deleting)
   }
 }
-case class TopicRecord(name:String, topicId:String, deleting:Boolean = false) extends Record {
+case class TopicRecord(name:String, topicId:String = "", deleting:Boolean = false) extends Record {
   override def serialize(): Array[Byte] = {
     val baos = new ByteArrayOutputStream
     val dataStream = new DataOutputStream(baos)

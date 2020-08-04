@@ -19,7 +19,7 @@ class ServerTest extends FunSuite {
 
     val config = Config(1, peerAddr1, serverList, TestUtils.tempDir())
     val server = new Kip500Controller(config)
-    assert(server.state == ServerState.LOOKING)
+    assert(server.consensus.getState() == ServerState.LOOKING)
   }
 
   test("should start leader election in LOOKING state") {
@@ -35,7 +35,7 @@ class ServerTest extends FunSuite {
     val config = Config(1, peerAddr1, serverList, TestUtils.tempDir())
 
     val server = new Kip500Controller(config)
-    assert(server.state == ServerState.LOOKING)
+    assert(server.consensus.getState() == ServerState.LOOKING)
 
     server.start()
   }
@@ -52,7 +52,24 @@ class ServerTest extends FunSuite {
 
     val config = Config(1, peerAddr1, serverList, TestUtils.tempDir())
 
-    val server = new Kip500Controller(config)
-    assert(server.currentVote.get() == Vote(config.serverId, server.kv.wal.lastLogEntryId))
+    val server = new RaftConsensus(config, new StubStateMachine())
+    assert(server.currentVote.get() == Vote(config.serverId, server.wal.lastLogEntryId))
   }
+
+  class StubStateMachine() extends StateMachine {
+    override def applyEntry(entry: WalEntry): Unit = {}
+
+    override def applyEntries(walEntries: List[WalEntry]): Unit = {
+
+    }
+
+    override def onBecomingLeader: Unit = {
+
+    }
+
+    override def onBecomingFollower: Unit = {
+
+    }
+  }
+
 }

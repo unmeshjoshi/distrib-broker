@@ -7,10 +7,10 @@ import com.dist.simplekafka.network.InetAddressAndPort
 import scala.util.control.Breaks.{break, breakable}
 import scala.jdk.CollectionConverters._
 
-class LeaderElector(config:Config, self:Kip500Controller, peers:List[Peer]) extends Logging {
+class LeaderElector(config:Config, self:RaftConsensus, peers:List[Peer]) extends Logging {
   val client = new NetworkClient()
   def lookForLeader(): Unit = {
-    self.currentVote.set(Vote(config.serverId, self.kv.wal.lastLogEntryId))
+    self.currentVote.set(Vote(config.serverId, self.wal.lastLogEntryId))
     breakable {
 
       while (true) {
@@ -37,7 +37,7 @@ class LeaderElector(config:Config, self:Kip500Controller, peers:List[Peer]) exte
     votes.put(config.serverAddress, selfVote())
     peers.foreach(peer ⇒ {
       try {
-      val request = VoteRequest(config.serverId, self.kv.wal.lastLogEntryId)
+      val request = VoteRequest(config.serverId, self.wal.lastLogEntryId)
       val voteRequest = RequestOrResponse(RequestKeys.RequestVoteKey, JsonSerDes.serialize(request), 0)
       val response = client.sendReceive(voteRequest, peer.address)
       val maybeVote = JsonSerDes.deserialize(response.messageBodyJson.getBytes(), classOf[VoteResponse])

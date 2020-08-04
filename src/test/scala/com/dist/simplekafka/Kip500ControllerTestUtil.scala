@@ -36,7 +36,7 @@ object Kip500ControllerTestUtil {
     peer3.start()
 
     TestUtils.waitUntilTrue(()⇒ {
-      peer3.state == ServerState.LEADING && peer1.state == ServerState.FOLLOWING && peer2.state == ServerState.FOLLOWING
+      peer3.consensus.getState() == ServerState.LEADING && peer1.consensus.getState() == ServerState.FOLLOWING && peer2.consensus.getState() == ServerState.FOLLOWING
     }, "Waiting for leader to be selected")
 
     peer3.config.serverAddress

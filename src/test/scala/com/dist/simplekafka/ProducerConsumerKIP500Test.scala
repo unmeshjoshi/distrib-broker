@@ -2,9 +2,6 @@ package com.dist.simplekafka
 
 import com.dist.common.{TestUtils, ZookeeperTestHarness}
 import com.dist.simplekafka.common.Logging
-import com.dist.simplekafka.kip500.CreateTopicRequest
-import com.dist.simplekafka.kip500.election.RequestKeys
-import com.dist.simplekafka.kip500.network.{JsonSerDes, RequestOrResponse}
 import com.dist.simplekafka.network.InetAddressAndPort
 import com.dist.simplekafka.server.Config
 import com.dist.util.Networks

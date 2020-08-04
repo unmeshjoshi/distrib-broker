@@ -1,9 +1,12 @@
 package com.dist.simplekafka.kip500
 
 import java.util.concurrent.ConcurrentHashMap
+
+import com.dist.simplekafka.kip500.network.Config
+
 import scala.jdk.CollectionConverters._
 
-class LeaderLeaseTracker(var leases: ConcurrentHashMap[Int, Lease], var clock: SystemClock, var server: Kip500Controller) extends Logging with LeaseTracker {
+class LeaderLeaseTracker(config:Config, var leases: ConcurrentHashMap[Int, Lease], var clock: SystemClock, var server: Consensus) extends Logging with LeaseTracker {
   val now: Long = clock.nanoTime
   this.leases.values.forEach((l: Lease) => {
     def foo(l: Lease) = {
@@ -21,7 +24,7 @@ class LeaderLeaseTracker(var leases: ConcurrentHashMap[Int, Lease], var clock: S
     for (leaseId <- leaseIds.asScala) {
       val lease = leases.get(leaseId)
       if (lease.getExpirationTime < now) {
-        info("Revoking lease with id " + lease.getName + " after " + lease.expirationTime + " in " + server.config.serverId)
+        info("Revoking lease with id " + lease.getName + " after " + lease.expirationTime + " in " + config.serverId)
         leases.remove(leaseId)
         server.propose(FenceBroker(lease.getName))
       }
