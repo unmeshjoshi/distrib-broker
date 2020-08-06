@@ -1,7 +1,9 @@
 package com.dist.simplekafka.kip500
 
+import com.dist.simplekafka.kip500.BrokerState.BrokerState
 import com.dist.simplekafka.kip500.election.RequestKeys
 import com.dist.simplekafka.kip500.network._
+import com.dist.simplekafka.network.InetAddressAndPort
 import com.dist.simplekafka.util.AdminUtils
 
 import scala.concurrent.{Future, Promise}
@@ -48,7 +50,7 @@ class Kip631Controller(val config: Config) extends Thread with StateMachine with
   }
 
   def brokerHeartbeat(brokerHeartbeat: BrokerHeartbeat) = {
-    consensus.propose(brokerHeartbeat)
+    consensus.propose(BrokerRecord(brokerHeartbeat.brokerId, brokerHeartbeat.address, brokerHeartbeat.ttl))
   }
 
   import scala.concurrent.ExecutionContext.Implicits.global
@@ -125,6 +127,8 @@ class Kip631Controller(val config: Config) extends Thread with StateMachine with
 case class FetchRequest(fromOffset: Long = 0)
 
 case class FetchResponse(walEntries: List[WalEntry])
+
+case class BrokerHeartbeat(val brokerId:Int, currentState:BrokerState, targetState:BrokerState, address:InetAddressAndPort, ttl:Long)
 
 case class BrokerHeartbeatResponse(errorCode:Int, LeaseEndTimeMs: Long)
 

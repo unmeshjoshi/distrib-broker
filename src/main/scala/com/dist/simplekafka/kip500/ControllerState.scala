@@ -23,8 +23,8 @@ class ControllerState() extends Logging {
     if (entry.entryType == EntryType.data) {
       val command = Record.deserialize(new ByteArrayInputStream(entry.data))
       command match {
-        case brokerHeartbeat: BrokerHeartbeat => {
-          
+        case brokerHeartbeat: BrokerRecord => {
+
           val brokerId = brokerHeartbeat.brokerId
           info(s"Registering Active Broker with id ${brokerId}")
           leaseTracker.addLease(new Lease(brokerId, TimeUnit.MILLISECONDS.toNanos(brokerHeartbeat.ttl)))

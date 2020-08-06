@@ -7,7 +7,7 @@ import java.util.concurrent.{ScheduledFuture, ScheduledThreadPoolExecutor, TimeU
 import com.dist.simplekafka.api.RequestOrResponse
 import com.dist.simplekafka.common.{JsonSerDes, Logging, TopicAndPartition}
 import com.dist.simplekafka.kip500.BrokerState.BrokerState
-import com.dist.simplekafka.kip500.{BrokerHeartbeat, BrokerState, EntryType, FenceBroker, FetchRequest, FetchResponse, PartitionRecord, Record, TopicRecord, WalEntry}
+import com.dist.simplekafka.kip500.{BrokerHeartbeat, BrokerRecord, BrokerState, EntryType, FenceBroker, FetchRequest, FetchResponse, PartitionRecord, Record, TopicRecord, WalEntry}
 import com.dist.simplekafka.network.InetAddressAndPort
 import com.dist.simplekafka.server.Config
 import com.dist.simplekafka.util.ZkUtils.Broker
@@ -21,8 +21,8 @@ class Server(val config:Config, val zookeeperClient: ZookeeperClient, val contro
 
   var brokerState:BrokerState = BrokerState.INITIAL
   def sendHearbeat() = {
-    val updateMetadataRequest = BrokerHeartbeat(config.brokerId, brokerState, BrokerState.ACTIVE, InetAddressAndPort.create(config.hostName, config.port), 2000)
-    val request = RequestOrResponse(com.dist.simplekafka.kip500.election.RequestKeys.BrokerHeartbeat.asInstanceOf[Short], JsonSerDes.serialize(updateMetadataRequest), correlationId.incrementAndGet())
+    val heartbeatRequest = BrokerHeartbeat(config.brokerId, brokerState, BrokerState.ACTIVE, InetAddressAndPort.create(config.hostName, config.port), 2000)
+    val request = RequestOrResponse(com.dist.simplekafka.kip500.election.RequestKeys.BrokerHeartbeat.asInstanceOf[Short], JsonSerDes.serialize(heartbeatRequest), correlationId.incrementAndGet())
     info(s"Sending heartbeat from broker ${config.brokerId}")
     val response = socketServer.sendReceiveTcp(request, config.kip500ControllerAddress)
     info(s"Received heartbeat response in broker ${config.brokerId} ${response.messageBodyJson}")
@@ -51,7 +51,7 @@ class Server(val config:Config, val zookeeperClient: ZookeeperClient, val contro
     if (entry.entryType == EntryType.data) {
       val command = Record.deserialize(new ByteArrayInputStream(entry.data))
       command match {
-        case brokerHeartbeat: BrokerHeartbeat => {
+        case brokerHeartbeat: BrokerRecord => {
           val brokerId = brokerHeartbeat.brokerId
           info(s"Registering Active Broker with id ${brokerId}")
           val broker = Broker(brokerId, brokerHeartbeat.address.address.getHostAddress, brokerHeartbeat.address.port)
