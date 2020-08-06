@@ -9,11 +9,7 @@ import scala.jdk.CollectionConverters._
 class LeaderLeaseTracker(config:Config, var leases: ConcurrentHashMap[Int, Lease], var clock: SystemClock, var server: Consensus) extends Logging with LeaseTracker {
   val now: Long = clock.nanoTime
   this.leases.values.forEach((l: Lease) => {
-    def foo(l: Lease) = {
       l.refresh(now)
-    }
-
-    foo(l)
   })
   info("Creating leader tracker with " + this.leases)
   private val scheduler = new HeartBeatScheduler(this.expireLeases)
