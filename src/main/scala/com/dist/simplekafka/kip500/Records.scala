@@ -4,6 +4,7 @@ import com.dist.simplekafka.network.InetAddressAndPort
 import java.io.{ByteArrayOutputStream, DataInputStream, DataOutputStream, InputStream}
 
 import com.dist.simplekafka.common.JsonSerDes
+import com.dist.simplekafka.kip500.BrokerState.BrokerState
 
 object RecordType {
   val RegisterBroker = 1
@@ -13,6 +14,12 @@ object RecordType {
   val PartitionRecord = 5
   //following is just for initial testing of replicated kv
   val SetValue = 6
+}
+
+
+object BrokerState extends Enumeration {
+  type BrokerState = Value
+  val UNKNOWN, INITIAL, FENCED, ACTIVE, SHUTDOWN = Value
 }
 
 object Record {
@@ -65,18 +72,22 @@ object BrokerHeartbeat {
   def deserialize(is:InputStream) = {
     val daos = new DataInputStream(is)
     val clientId = daos.readInt()
+    val currentState = daos.readInt()
+    val targetState = daos.readInt()
     val address = JsonSerDes.deserialize(daos.readUTF(), classOf[InetAddressAndPort])
     val ttl = daos.readLong()
-    BrokerHeartbeat(clientId, address, ttl)
+    BrokerHeartbeat(clientId, BrokerState(currentState), BrokerState(targetState), address, ttl)
   }
 }
 
-case class BrokerHeartbeat(val brokerId:Int, address:InetAddressAndPort, ttl:Long) extends Record {
+case class BrokerHeartbeat(val brokerId:Int, currentState:BrokerState, targetState:BrokerState, address:InetAddressAndPort, ttl:Long) extends Record {
   override def serialize(): Array[Byte] = {
     val baos = new ByteArrayOutputStream
     val dataStream = new DataOutputStream(baos)
     dataStream.writeInt(RecordType.RegisterBroker)
     dataStream.writeInt(brokerId)
+    dataStream.writeInt(currentState.id)
+    dataStream.writeInt(targetState.id)
     dataStream.writeUTF(JsonSerDes.serialize(address))
     dataStream.writeLong(ttl)
     baos.toByteArray

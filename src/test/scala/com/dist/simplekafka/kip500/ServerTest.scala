@@ -52,15 +52,15 @@ class ServerTest extends FunSuite {
 
     val config = Config(1, peerAddr1, serverList, TestUtils.tempDir())
 
-    val server = new RaftConsensus(config, new StubStateMachine())
+    val server = new ConsensusImpl(config, new StubStateMachine())
     assert(server.currentVote.get() == Vote(config.serverId, server.wal.lastLogEntryId))
   }
 
   class StubStateMachine() extends StateMachine {
-    override def applyEntry(entry: WalEntry): Unit = {}
+    override def applyEntry(entry: WalEntry): Response = Response.None
 
-    override def applyEntries(walEntries: List[WalEntry]): Unit = {
-
+    override def applyEntries(walEntries: List[WalEntry]): List[Response] = {
+      List(Response.None)
     }
 
     override def onBecomingLeader: Unit = {

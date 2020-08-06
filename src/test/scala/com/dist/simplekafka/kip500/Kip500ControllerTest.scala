@@ -28,6 +28,8 @@ class Kip500ControllerTest extends FunSuite {
     val peer2 = new Kip500Controller(config2)
 
     val config3 = Config(3, peerAddr3, serverList, TestUtils.tempDir())
+
+    //with the election algorithm in Leader which selects leader based on ids. Controller with id=3 will be leader
     val activeController = new Kip500Controller(config3)
 
     peer1.startListening()
@@ -42,7 +44,7 @@ class Kip500ControllerTest extends FunSuite {
       activeController.consensus.getState() == ServerState.LEADING && peer1.consensus.getState() == ServerState.FOLLOWING && peer2.consensus.getState() == ServerState.FOLLOWING
     }, "Waiting for leader to be selected")
 
-    val future = activeController.brokerHeartbeat(BrokerHeartbeat(0, InetAddressAndPort(address, 8080), 2000))
+    val future = activeController.brokerHeartbeat(BrokerHeartbeat(0, BrokerState.ACTIVE, BrokerState.ACTIVE, InetAddressAndPort(address, 8080), 2000))
     Await.ready(future, 5.second)
     val value = activeController.controllerState.activeBrokers.get(0)
     assert(value.getName == 0)
@@ -81,7 +83,7 @@ class Kip500ControllerTest extends FunSuite {
 
     val activeController = peer3
 
-    val future = activeController.brokerHeartbeat(BrokerHeartbeat(0, InetAddressAndPort(address, 8080), 2000))
+    val future = activeController.brokerHeartbeat(BrokerHeartbeat(0, BrokerState.ACTIVE, BrokerState.ACTIVE, InetAddressAndPort(address, 8080), 2000))
     Await.ready(future, 5.second)
 
     val value = activeController.controllerState.activeBrokers.get(0)
@@ -133,13 +135,13 @@ class Kip500ControllerTest extends FunSuite {
 
     val brokerPorts = TestUtils.choosePorts(3)
 
-    val future = activeController.brokerHeartbeat(BrokerHeartbeat(0, InetAddressAndPort(address, brokerPorts(0)), 2000))
+    val future = activeController.brokerHeartbeat(BrokerHeartbeat(0,BrokerState.ACTIVE, BrokerState.ACTIVE, InetAddressAndPort(address, brokerPorts(0)), 2000))
     Await.ready(future, 5.second)
 
-    val future2 = activeController.brokerHeartbeat(BrokerHeartbeat(1, InetAddressAndPort(address, brokerPorts(1)), 2000))
+    val future2 = activeController.brokerHeartbeat(BrokerHeartbeat(1, BrokerState.ACTIVE, BrokerState.ACTIVE,InetAddressAndPort(address, brokerPorts(1)), 2000))
     Await.ready(future2, 5.second)
 
-    val future3: Future[Any] = activeController.brokerHeartbeat(BrokerHeartbeat(2, InetAddressAndPort(address, brokerPorts(2)), 2000))
+    val future3: Future[Any] = activeController.brokerHeartbeat(BrokerHeartbeat(2, BrokerState.ACTIVE, BrokerState.ACTIVE,InetAddressAndPort(address, brokerPorts(2)), 2000))
     Await.ready(future3, 5.second)
 
     TestUtils.waitUntilTrue(()=>{
@@ -151,9 +153,9 @@ class Kip500ControllerTest extends FunSuite {
 
     val entries = activeController.consensus.readEntries(0)
     val records = entries.map(entry => Record.deserialize(new ByteArrayInputStream(entry.data)))
-    assert(records(0) == BrokerHeartbeat(0, InetAddressAndPort(address, brokerPorts(0)), 2000))
-    assert(records(1) == BrokerHeartbeat(1, InetAddressAndPort(address, brokerPorts(1)), 2000))
-    assert(records(2) == BrokerHeartbeat(2, InetAddressAndPort(address, brokerPorts(2)), 2000))
+    assert(records(0) == BrokerHeartbeat(0, BrokerState.ACTIVE, BrokerState.ACTIVE,InetAddressAndPort(address, brokerPorts(0)), 2000))
+    assert(records(1) == BrokerHeartbeat(1, BrokerState.ACTIVE, BrokerState.ACTIVE,InetAddressAndPort(address, brokerPorts(1)), 2000))
+    assert(records(2) == BrokerHeartbeat(2, BrokerState.ACTIVE, BrokerState.ACTIVE,InetAddressAndPort(address, brokerPorts(2)), 2000))
     assert(records(3) == TopicRecord("topic1", ""))
     assert(records(4).isInstanceOf[PartitionRecord])
     assert(records(5).isInstanceOf[PartitionRecord])

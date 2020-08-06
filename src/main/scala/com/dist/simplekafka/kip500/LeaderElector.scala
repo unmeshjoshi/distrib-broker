@@ -7,7 +7,7 @@ import com.dist.simplekafka.network.InetAddressAndPort
 import scala.util.control.Breaks.{break, breakable}
 import scala.jdk.CollectionConverters._
 
-class LeaderElector(config:Config, self:RaftConsensus, peers:List[Peer]) extends Logging {
+class LeaderElector(config:Config, self:ConsensusImpl, peers:List[Peer]) extends Logging {
   val client = new NetworkClient()
   def lookForLeader(): Unit = {
     self.currentVote.set(Vote(config.serverId, self.wal.lastLogEntryId))
