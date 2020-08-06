@@ -17,7 +17,7 @@ class ProducerConsumerKIP500Test extends ZookeeperTestHarness with Logging {
     val broker2 = newBroker(2, activeControllerAddress)
     val broker3 = newBroker(3, activeControllerAddress)
 
-    broker1.startup() //broker1 will become controller as its the first one to start
+    broker1.startup()
     broker2.startup()
     broker3.startup()
 

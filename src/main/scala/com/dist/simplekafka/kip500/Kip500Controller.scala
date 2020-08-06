@@ -48,8 +48,7 @@ class Kip500Controller(val config: Config) extends Thread with StateMachine with
   }
 
   def brokerHeartbeat(brokerHeartbeat: BrokerHeartbeat) = {
-    val future = consensus.propose(brokerHeartbeat)
-    future
+    consensus.propose(brokerHeartbeat)
   }
 
   import scala.concurrent.ExecutionContext.Implicits.global
@@ -127,87 +126,5 @@ case class FetchRequest(fromOffset: Long = 0)
 
 case class FetchResponse(walEntries: List[WalEntry])
 
-case class AppendEntriesRequest(walEntry: WalEntry, commitIndex: Long)
-
-case class AppendEntriesResponse(xid: Long, success: Boolean)
-
 case class BrokerHeartbeatResponse(errorCode:Int, LeaseEndTimeMs: Long)
-
-class Leader(config: Config, client: NetworkClient, val self: ConsensusImpl) extends Logging {
-  val followerProxies = config.getPeers().map(p ⇒ PeerProxy(p, 0, sendHeartBeat))
-
-  def startLeading() = {
-    followerProxies.foreach(_.start())
-  }
-
-  def sendHeartBeat(peerProxy: PeerProxy) = {
-    info(s"Sending heartbeat from ${config.serverId} to ${peerProxy.peerInfo.id}")
-    val appendEntries = JsonSerDes.serialize(AppendEntriesRequest(null, self.wal.highWaterMark))
-    val request = RequestOrResponse(RequestKeys.AppendEntriesKey, appendEntries, 0)
-    //sendHeartBeat
-    val response = client.sendReceive(request, peerProxy.peerInfo.address)
-    //TODO: Handle response
-    val appendOnlyResponse: AppendEntriesResponse = JsonSerDes.deserialize(response.messageBodyJson.getBytes(), classOf[AppendEntriesResponse])
-    if (appendOnlyResponse.success) {
-      peerProxy.matchIndex = appendOnlyResponse.xid
-    } else {
-      // TODO: handle term and failures
-    }
-  }
-
-  def stopLeading() = followerProxies.foreach(_.stop())
-
-  var lastEntryId: Long = self.wal.lastLogEntryId
-
-
-  def propose(record: Record) = {
-    val resultPromise = Promise[Response]()
-    val data = record.serialize()
-    val entryId = appendToLocalLog(data)
-    self.addPendingRequest(entryId, resultPromise)
-    broadCastAppendEntries(self.wal.entries(entryId - 1, entryId).last)
-    resultPromise.future
-  }
-
-  private def findMaxIndexWithQuorum = {
-    val matchIndexes = followerProxies.map(p ⇒ p.matchIndex)
-    val sorted: Seq[Long] = matchIndexes.sorted
-    val matchIndexAtQuorum = sorted((config.peerConfig.size - 1) / 2)
-    matchIndexAtQuorum
-  }
-
-  private def broadCastAppendEntries(walEntry: WalEntry) = {
-    val request = appendEntriesRequestFor(walEntry)
-
-    //TODO: Happens synchronously for demo. Has to be async with each peer having its own thread
-    followerProxies.map(peer ⇒ {
-      val response = client.sendReceive(request, peer.peerInfo.address)
-      val appendEntriesResponse = JsonSerDes.deserialize(response.messageBodyJson.getBytes(), classOf[AppendEntriesResponse])
-
-      peer.matchIndex = appendEntriesResponse.xid
-
-      val matchIndexAtQuorum = findMaxIndexWithQuorum
-
-
-      info(s"Peer match indexes are at ${config.peerConfig}")
-      info(s"CommitIndex from quorum is ${matchIndexAtQuorum}")
-
-      if (self.commitIndex < matchIndexAtQuorum) {
-        self.updateCommitIndexAndApplyEntries(matchIndexAtQuorum)
-      }
-    })
-  }
-
-  private def appendEntriesRequestFor(walEntry: WalEntry) = {
-    val appendEntries = JsonSerDes.serialize(AppendEntriesRequest(walEntry, self.commitIndex))
-    val request = RequestOrResponse(RequestKeys.AppendEntriesKey, appendEntries, 0)
-    request
-  }
-
-  private def appendToLocalLog(data: Array[Byte]) = {
-    lastEntryId = self.wal.writeEntry(data)
-    lastEntryId
-  }
-
-}
 
