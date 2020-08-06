@@ -17,13 +17,13 @@ class LeaderElectionTest extends FunSuite {
     val serverList = List(Peer(1, peerAddr1), Peer(2, peerAddr2), Peer(3, peerAddr3))
 
     val config1 = Config(1, peerAddr1, serverList, TestUtils.tempDir())
-    val peer1 = new Kip500Controller(config1)
+    val peer1 = new Kip631Controller(config1)
 
     val config2 = Config(2, peerAddr2, serverList, TestUtils.tempDir())
-    val peer2 = new Kip500Controller(config2)
+    val peer2 = new Kip631Controller(config2)
 
     val config3 = Config(3, peerAddr3, serverList, TestUtils.tempDir())
-    val peer3 = new Kip500Controller(config3)
+    val peer3 = new Kip631Controller(config3)
 
     peer1.startListening()
     peer2.startListening()

@@ -10,7 +10,7 @@ import com.dist.util.Networks
 class ProducerConsumerKIP500Test extends ZookeeperTestHarness with Logging {
 
   test("should produce and consumer messages from five broker cluster") {
-    val activeControllerAddress = Kip500ControllerTestUtil.startAndWaitForControllerQuorum()
+    val activeControllerAddress = Kip631ControllerTestUtil.startAndWaitForControllerQuorum()
 
 
     val broker1 = newBroker(1, activeControllerAddress)

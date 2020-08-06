@@ -6,7 +6,7 @@ import com.dist.simplekafka.util.AdminUtils
 
 import scala.concurrent.{Future, Promise}
 
-class Kip500Controller(val config: Config) extends Thread with StateMachine with Logging {
+class Kip631Controller(val config: Config) extends Thread with StateMachine with Logging {
   val consensus: Consensus = new ConsensusImpl(config, this)
 
   val controllerState = new ControllerState()
@@ -53,7 +53,7 @@ class Kip500Controller(val config: Config) extends Thread with StateMachine with
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  class ControllerAPI(controller:Kip500Controller) {
+  class ControllerAPI(controller:Kip631Controller) {
     def handleRequest(request:RequestOrResponse):Future[RequestOrResponse] = {
       if (request.requestId == RequestKeys.Fetch) {
         val fetchRequest = deserialize(request, classOf[FetchRequest])

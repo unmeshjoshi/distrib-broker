@@ -2,11 +2,11 @@ package com.dist.simplekafka
 
 import com.dist.common.TestUtils
 import com.dist.simplekafka.kip500.network.{Config, Peer}
-import com.dist.simplekafka.kip500.{Kip500Controller, ServerState}
+import com.dist.simplekafka.kip500.{Kip631Controller, ServerState}
 import com.dist.simplekafka.network.InetAddressAndPort
 import com.dist.util.Networks
 
-object Kip500ControllerTestUtil {
+object Kip631ControllerTestUtil {
 
   def startAndWaitForControllerQuorum() = {
     val address = new Networks().ipv4Address
@@ -19,13 +19,13 @@ object Kip500ControllerTestUtil {
     val serverList = List(Peer(1, peerAddr1), Peer(2, peerAddr2), Peer(3, peerAddr3))
 
     val config1 = Config(1, peerAddr1, serverList, TestUtils.tempDir())
-    val peer1 = new Kip500Controller(config1)
+    val peer1 = new Kip631Controller(config1)
 
     val config2 = Config(2, peerAddr2, serverList, TestUtils.tempDir())
-    val peer2 = new Kip500Controller(config2)
+    val peer2 = new Kip631Controller(config2)
 
     val config3 = Config(3, peerAddr3, serverList, TestUtils.tempDir())
-    val peer3 = new Kip500Controller(config3)
+    val peer3 = new Kip631Controller(config3)
 
     peer1.startListening()
     peer2.startListening()

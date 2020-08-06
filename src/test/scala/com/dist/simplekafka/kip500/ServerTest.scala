@@ -18,7 +18,7 @@ class ServerTest extends FunSuite {
     val serverList = List(Peer(1, peerAddr1), Peer(2, peerAddr2), Peer(3, peerAddr3))
 
     val config = Config(1, peerAddr1, serverList, TestUtils.tempDir())
-    val server = new Kip500Controller(config)
+    val server = new Kip631Controller(config)
     assert(server.consensus.getState() == ServerState.LOOKING)
   }
 
@@ -34,7 +34,7 @@ class ServerTest extends FunSuite {
 
     val config = Config(1, peerAddr1, serverList, TestUtils.tempDir())
 
-    val server = new Kip500Controller(config)
+    val server = new Kip631Controller(config)
     assert(server.consensus.getState() == ServerState.LOOKING)
 
     server.start()
