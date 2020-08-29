@@ -27,7 +27,7 @@ class ControllerStateTest extends FunSuite {
     val response = kv.applyEntry(walEntry)
     response match {
       case brokerRegistration:BrokerRegistrationResponse =>
-        assert(brokerRegistration.errorCode == 0)
+        assert(brokerRegistration.error == 0)
         assert(brokerRegistration.brokerEpoch == entryId)
     }
   }

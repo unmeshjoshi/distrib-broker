@@ -1,12 +1,17 @@
 package com.dist.simplekafka.kip500
 
+import java.util
+import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
+
 import com.dist.simplekafka.kip500.BrokerState.BrokerState
 import com.dist.simplekafka.kip500.election.RequestKeys
 import com.dist.simplekafka.kip500.network._
 import com.dist.simplekafka.network.InetAddressAndPort
 import com.dist.simplekafka.util.AdminUtils
 
+import scala.collection.mutable
 import scala.concurrent.{Future, Promise}
+import scala.util.Success
 
 class Kip631Controller(val config: Config) extends Thread with StateMachine with Logging {
   val consensus: Consensus = new ConsensusImpl(config, this)
@@ -55,6 +60,8 @@ class Kip631Controller(val config: Config) extends Thread with StateMachine with
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
+  val pendingBrokerRequests = new ConcurrentHashMap[Int, String]
+
   class ControllerAPI(controller:Kip631Controller) {
     def handleRequest(request:RequestOrResponse):Future[RequestOrResponse] = {
       if (request.requestId == RequestKeys.Fetch) {
@@ -65,13 +72,28 @@ class Kip631Controller(val config: Config) extends Thread with StateMachine with
 
       } else if (request.requestId == RequestKeys.BrokerHeartbeat) {
         val brokerHeartbeat = deserialize(request, classOf[BrokerHeartbeat])
-        val future: Future[Response] = controller.brokerHeartbeat(brokerHeartbeat)
-        future.map((response) => {
-          val brokerRegistration = response.asInstanceOf[BrokerRegistrationResponse]
-          val heartbeatResponse = serialize(BrokerHeartbeatResponse(brokerRegistration.errorCode, brokerRegistration.brokerEpoch))
-          RequestOrResponse(RequestKeys.BrokerHeartbeat.asInstanceOf[Short], heartbeatResponse, request.correlationId)
-        })
+        //validation against pending requests as well as already registered brokers
+        //before proposing the registration request to Raft module
+        if (controllerState.isRegistered(brokerHeartbeat.brokerId) ||
+            pendingBrokerRequests.contains(brokerHeartbeat.brokerId)) {
 
+
+          Future.successful(RequestOrResponse(request.requestId, JsonSerDes.serialize(BrokerHeartbeatResponse(Errors.DuplicateBrokerId, 0)), request.correlationId))
+
+        } else {
+          pendingBrokerRequests.put(brokerHeartbeat.brokerId, "pending")
+          val future: Future[Response] = controller.brokerHeartbeat(brokerHeartbeat)
+          future.map((response) => {
+            val brokerRegistration = response.asInstanceOf[BrokerRegistrationResponse]
+            val heartbeatResponse = serialize(BrokerHeartbeatResponse(brokerRegistration.error, brokerRegistration.brokerEpoch))
+            RequestOrResponse(RequestKeys.BrokerHeartbeat.asInstanceOf[Short], heartbeatResponse, request.correlationId)
+          }).andThen {
+            case r => {
+              pendingBrokerRequests.remove(brokerHeartbeat.brokerId)
+              r
+            }
+          }
+        }
       } else if (request.requestId == RequestKeys.CreateTopic) {
         val createTopicRequest = deserialize(request, classOf[CreateTopicRequest])
         val future = controller.createTopic(createTopicRequest.topicName, createTopicRequest.noOfPartitions, createTopicRequest.replicationFactor)

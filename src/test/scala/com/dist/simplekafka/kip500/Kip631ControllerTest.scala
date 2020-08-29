@@ -1,9 +1,15 @@
 package com.dist.simplekafka.kip500
 
 import java.io.ByteArrayInputStream
+import java.net.Socket
 
+import com.dist.simplekafka.SimpleSocketServer
+import com.dist.simplekafka.api.RequestOrResponse
+import com.dist.simplekafka.common.JsonSerDes
 import com.dist.simplekafka.kip500.network.{Config, Peer}
 import com.dist.simplekafka.network.InetAddressAndPort
+import com.dist.util.SocketIO
+import org.apache.log4j.net.SocketServer
 import org.scalatest.FunSuite
 
 import scala.concurrent.{Await, Future}
@@ -48,6 +54,59 @@ class Kip631ControllerTest extends FunSuite {
     Await.ready(future, 5.second)
     val value = activeController.controllerState.activeBrokers.get(0)
     assert(value.getName == 0)
+  }
+
+
+  test("should detect duplicate broker registration") {
+    val address = new Networks().ipv4Address
+    val ports = TestUtils.choosePorts(3)
+    val peerAddr1 = InetAddressAndPort(address, ports(0))
+    val peerAddr2 = InetAddressAndPort(address, ports(1))
+    val peerAddr3 = InetAddressAndPort(address, ports(2))
+
+
+    val serverList = List(Peer(1, peerAddr1), Peer(2, peerAddr2), Peer(3, peerAddr3))
+
+    val config1 = Config(1, peerAddr1, serverList, TestUtils.tempDir())
+    val peer1 = new Kip631Controller(config1)
+
+    val config2 = Config(2, peerAddr2, serverList, TestUtils.tempDir())
+    val peer2 = new Kip631Controller(config2)
+
+    val config3 = Config(3, peerAddr3, serverList, TestUtils.tempDir())
+
+    //with the election algorithm in Leader which selects leader based on ids. Controller with id=3 will be leader
+    val activeController = new Kip631Controller(config3)
+
+    peer1.startListening()
+    peer2.startListening()
+    activeController.startListening()
+
+    peer1.start()
+    peer2.start()
+    activeController.start()
+
+    TestUtils.waitUntilTrue(()⇒ {
+      activeController.consensus.getState() == ServerState.LEADING && peer1.consensus.getState() == ServerState.FOLLOWING && peer2.consensus.getState() == ServerState.FOLLOWING
+    }, "Waiting for leader to be selected")
+
+
+    val heartbeatRequest1 = BrokerHeartbeat(0, BrokerState.FENCED, BrokerState.ACTIVE, InetAddressAndPort.create("10.10.10.10", 8000), 5000000)
+    val response1 = sendHeartbeatRequest(heartbeatRequest1, config3.serverAddress)
+    assert(response1.errorCode == Errors.None)
+
+    val heartbeatRequest2 = BrokerHeartbeat(0, BrokerState.FENCED, BrokerState.ACTIVE, InetAddressAndPort.create("10.10.10.11", 8000), 5000000)
+    val response2 = sendHeartbeatRequest(heartbeatRequest2, config3.serverAddress)
+
+    assert(response2.errorCode == Errors.DuplicateBrokerId)
+
+  }
+
+
+  private def sendHeartbeatRequest(heartbeatRequest1: BrokerHeartbeat, serverAddress:InetAddressAndPort) = {
+    val request = RequestOrResponse(com.dist.simplekafka.kip500.election.RequestKeys.BrokerHeartbeat.asInstanceOf[Short], JsonSerDes.serialize(heartbeatRequest1), 1)
+    val response = sendReceiveTcp(request, serverAddress)
+    JsonSerDes.deserialize(response.messageBodyJson, classOf[BrokerHeartbeatResponse])
   }
 
   test("should commit FenceBroker record when broker lease expires") {
@@ -161,4 +220,8 @@ class Kip631ControllerTest extends FunSuite {
     assert(records(5).isInstanceOf[PartitionRecord])
   }
 
+  def sendReceiveTcp(message: RequestOrResponse, to: InetAddressAndPort) = {
+    val clientSocket = new Socket(to.address, to.port)
+    new SocketIO[RequestOrResponse](clientSocket, classOf[RequestOrResponse]).requestResponse(message)
+  }
 }

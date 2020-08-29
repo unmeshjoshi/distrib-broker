@@ -5,13 +5,22 @@ import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
 
 import scala.jdk.CollectionConverters._
 
+object Errors {
+  val None = 0
+  val DuplicateBrokerId = 1
+}
 
-case class BrokerRegistrationResponse(brokerEpoch:Long, errorCode:Int) extends Response
+case class BrokerRegistrationResponse(brokerEpoch:Long, error:Int) extends Response
 
 class ControllerState() extends Logging {
 
   val activeBrokers = new ConcurrentHashMap[Int, Lease]
   var leaseTracker: LeaseTracker = new FollowerLeaseTracker(activeBrokers)
+
+  def isRegistered(brokerId: Int) = {
+    activeBrokers.containsKey(brokerId)
+  }
+
 
   def applyEntries(entries: List[WalEntry]): List[Response] = {
     entries.map(entry ⇒ {
@@ -29,7 +38,7 @@ class ControllerState() extends Logging {
           info(s"Registering Active Broker with id ${brokerId}")
           leaseTracker.addLease(new Lease(brokerId, TimeUnit.MILLISECONDS.toNanos(brokerHeartbeat.ttl)))
           val brokerEpoch = entry.entryId //brokerEpoch is log entry offset
-          BrokerRegistrationResponse(brokerEpoch, 0)
+          BrokerRegistrationResponse(brokerEpoch, Errors.None)
         }
         case topicRecord: TopicRecord => {
           info(s"Applying ${topicRecord}")

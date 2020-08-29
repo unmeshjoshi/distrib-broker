@@ -17,12 +17,12 @@ object ServerState extends Enumeration {
 }
 
 object Response {
-  val None = new Response()
+  val None = new DefaultResponse()
 }
 
-class Response(){
+trait Response
 
-}
+case class DefaultResponse(errorCode:Int = Errors.None) extends Response
 
 trait Consensus {
   def getState():ServerState
