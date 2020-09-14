@@ -8,7 +8,8 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 
 public class FileMessageSet {
-    private static Logger LOG = Logger.getLogger(FileMessageSet.class);
+    private static Logger logger = Logger.getLogger(FileMessageSet.class.getName());
+
     private File file;
     private FileChannel logFileChannel;
     private long startPosition;
@@ -25,7 +26,7 @@ public class FileMessageSet {
         try {
             //zero copy transfer
             var bytesTransferred = logFileChannel.transferTo(startPosition, size, socketChannel);
-            LOG.trace("FileMessageSet " + file.getAbsolutePath() + " : bytes transferred : " + bytesTransferred
+            logger.info("FileMessageSet " + file.getAbsolutePath() + " : bytes transferred : " + bytesTransferred
                     + " bytes requested for transfer : " + size);
             return bytesTransferred;
         } catch (IOException e) {
