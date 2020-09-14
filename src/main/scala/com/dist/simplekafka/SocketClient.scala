@@ -1,5 +1,6 @@
 package com.dist.simplekafka
 
+import java.io.{DataInputStream, DataOutputStream}
 import java.net.Socket
 
 import com.dist.simplekafka.api.RequestOrResponse

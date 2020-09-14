@@ -14,12 +14,6 @@ class MyZookeeperClient(zkClient:ZkClient) {
   val ControllerPath = "/controller"
   val ReplicaLeaderElectionPath = "/topics/replica/leader"
 
-  def subscribeBrokerChangeListener(listener: IZkChildListener): Option[List[String]] = {
-    val result = zkClient.subscribeChildChanges(BrokerIdsPath, listener)
-    Option(result).map(_.asScala.toList)
-  }
-
-
   def registerBroker(broker:Broker) = {
     val brokerData = JsonSerDes.serialize(broker)
     val brokerPath = getBrokerPath(broker.id)
@@ -34,9 +28,15 @@ class MyZookeeperClient(zkClient:ZkClient) {
     }).toSet
   }
 
+
   def getBrokerInfo(brokerId: Int): Broker = {
     val data: String = zkClient.readData(getBrokerPath(brokerId))
     JsonSerDes.deserialize(data.getBytes, classOf[Broker])
+  }
+
+  def subscribeBrokerChangeListener(listener: IZkChildListener): Option[List[String]] = {
+    val result = zkClient.subscribeChildChanges(BrokerIdsPath, listener)
+    Option(result).map(_.asScala.toList)
   }
 
   private def getBrokerPath(id: Int) = {

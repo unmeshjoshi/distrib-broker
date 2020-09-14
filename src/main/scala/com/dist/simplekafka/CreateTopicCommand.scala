@@ -22,7 +22,7 @@ class CreateTopicCommand(zookeeperClient:ZookeeperClient,  partitionAssigner:Rep
   }
 
   def createTopicKip500(topicName:String, noOfPartitions:Int, replicationFactor:Int, kip500ControllerAddress:InetAddressAndPort, socketServer:SimpleSocketServer): Unit = {
-    val createTopicRequest = RequestOrResponse(RequestKeys.CreateTopic.asInstanceOf[Short], JsonSerDes.serialize(CreateTopicRequest("topic1", 2, 3)), 0)
+    val createTopicRequest = RequestOrResponse(RequestKeys.CreateTopic.asInstanceOf[Short], JsonSerDes.serialize(CreateTopicRequest(topicName, noOfPartitions, replicationFactor)), 0)
     val response = socketServer.sendReceiveTcp(createTopicRequest, kip500ControllerAddress)
     info(s"Created Topic successfully ${response.messageBodyJson}")
   }
