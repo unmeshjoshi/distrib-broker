@@ -76,8 +76,14 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) {
       case RequestKeys.FindCoordinatorKey => {
         val findCoordinatorRequest: FindCoordinatorRequest = JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[FindCoordinatorRequest])
         val partition = partitionFor(findCoordinatorRequest.key)
-        val partitionInfo:PartitionInfo = getOrCreateInternalTopic(GROUP_METADATA_TOPIC_NAME, partition)
-        RequestOrResponse(RequestKeys.FetchKey, JsonSerDes.serialize(FindCoordinatorResponse(TopicAndPartition(GROUP_METADATA_TOPIC_NAME, partition), partitionInfo)), request.correlationId)
+        val partitionInfo: PartitionInfo = if (findCoordinatorRequest.coordinatorType == FindCoordinatorRequest.GROUP_COORDINATOR) {
+          getOrCreateInternalTopic(GROUP_METADATA_TOPIC_NAME, partition)
+        } else if(findCoordinatorRequest.coordinatorType == FindCoordinatorRequest.TRANSACTION_COORDINATOR) {
+          getOrCreateInternalTopic(TRANSACTION_STATE_TOPIC_NAME, partition)
+        } else {
+          throw new IllegalArgumentException("Invalid request");
+        }
+        RequestOrResponse(RequestKeys.FindCoordinatorKey, JsonSerDes.serialize(FindCoordinatorResponse(TopicAndPartition(GROUP_METADATA_TOPIC_NAME, partition), partitionInfo)), request.correlationId)
       }
       case RequestKeys.OffsetCommitRequest => {
         val offsetCommitRequest= JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[OffsetCommitRequest])
@@ -101,7 +107,7 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) {
   private def getOrCreateInternalTopic(topic: String, partition:Int):PartitionInfo = {
     val topicMetadata: mutable.Set[TopicAndPartition] = getTopicMetadata(topic)
     if (topicMetadata.size == 0) {
-      createInternalTopic(GROUP_METADATA_TOPIC_NAME)
+      createInternalTopic(topic)
       PartitionInfo(Broker(-1, "", -1), List())
     } else {
       leaderCache.get(TopicAndPartition(topic, partition));

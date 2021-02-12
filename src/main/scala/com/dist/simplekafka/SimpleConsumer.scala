@@ -7,6 +7,21 @@ import com.dist.simplekafka.common.{JsonSerDes, Logging, TopicAndPartition}
 import com.dist.simplekafka.network.InetAddressAndPort
 import com.dist.simplekafka.util.Utils
 
+object Coordinator {
+  def findCoordinator(socketClient:SocketClient, bootstrapBroker: InetAddressAndPort, key:String, coordinatorType:String) = {
+    var leaderId = -1
+    var coordinatorResponse:FindCoordinatorResponse = null
+    while(leaderId == -1) {
+      val request = RequestOrResponse(RequestKeys.FindCoordinatorKey, JsonSerDes.serialize(FindCoordinatorRequest(key, coordinatorType)), 1)
+      val response = socketClient.sendReceiveTcp(request, bootstrapBroker)
+      val findCoordinatorResponse = JsonSerDes.deserialize(response.messageBodyJson.getBytes(), classOf[FindCoordinatorResponse])
+      coordinatorResponse = findCoordinatorResponse
+      leaderId = coordinatorResponse.partitionInfo.leader.id
+    }
+    coordinatorResponse
+  }
+}
+
 class SimpleConsumer(bootstrapBroker: InetAddressAndPort, socketClient:SocketClient = new SocketClient) extends Logging {
   val correlationId = new AtomicInteger(0)
   val consumerId = "consumer1"
@@ -16,22 +31,9 @@ class SimpleConsumer(bootstrapBroker: InetAddressAndPort, socketClient:SocketCli
 
   }
 
-  def findCoordinator() = {
-    var leaderId = -1
-    var coordinatorResponse:FindCoordinatorResponse = null
-    while(leaderId == -1) {
-      val request = RequestOrResponse(RequestKeys.FindCoordinatorKey, JsonSerDes.serialize(FindCoordinatorRequest(groupId, "Group")), 1)
-      val response = socketClient.sendReceiveTcp(request, bootstrapBroker)
-      val findCoordinatorResponse = JsonSerDes.deserialize(response.messageBodyJson.getBytes(), classOf[FindCoordinatorResponse])
-      coordinatorResponse = findCoordinatorResponse
-      leaderId = coordinatorResponse.partitionInfo.leader.id
-    }
-    coordinatorResponse
-  }
-
   var lastCommitedOffset = 0;
   def commitOffset(offset:Int)={
-    val coordinatorResponse = findCoordinator()
+    val coordinatorResponse = Coordinator.findCoordinator(socketClient, bootstrapBroker, groupId, FindCoordinatorRequest.GROUP_COORDINATOR)
     val coordinator = coordinatorResponse.partitionInfo.leader
     val request = RequestOrResponse(RequestKeys.OffsetCommitRequest, JsonSerDes.serialize(OffsetCommitRequest(groupId, consumerId, offset, coordinatorResponse.topicPartition)), correlationId.getAndIncrement())
     val response = socketClient.sendReceiveTcp(request, InetAddressAndPort.create(coordinator.host, coordinator.port))
