@@ -20,7 +20,6 @@ class MyZookeeperClient(zkClient:ZkClient) {
     createEphemeralPath(zkClient, brokerPath, brokerData)
   }
 
-
   def getAllBrokers(): Set[Broker] = {
     zkClient.getChildren(BrokerIdsPath).asScala.map(brokerId => {
       val data: String = zkClient.readData(getBrokerPath(brokerId.toInt))

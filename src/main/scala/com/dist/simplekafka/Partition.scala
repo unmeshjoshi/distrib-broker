@@ -164,7 +164,7 @@ class Partition(config: Config, topicAndPartition: TopicAndPartition)(implicit s
     remoteReplicasMap.put(replicaId, offset)
     val values = remoteReplicasMap.values().asScala.toList.sorted.reverse
     highWaterMark = values(0)
-    info(s"Updated highwatermark to ${highWaterMark} for ${this.topicAndPartition} on ${config.brokerId}")
+//    info(s"Updated highwatermark to ${highWaterMark} for ${this.topicAndPartition} on ${config.brokerId}")
   }
 
 

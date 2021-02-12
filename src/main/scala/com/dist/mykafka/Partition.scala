@@ -14,9 +14,8 @@ class Partition(val topic:String, val partition:Int, logDir:File) {
   val offset = new AtomicInteger()
   val offsetMap = new util.HashMap[Int, Long]()
 
-  def append(key: String, messageBytes: Array[Byte]) = {
+  def append(keyBytes: Array[Byte], messageBytes: Array[Byte]) = {
     val startPosition = channel.position()
-    val keyBytes = key.getBytes()
     writeTotalMessageLength(messageBytes, keyBytes)
     writeKey(keyBytes)
     writeMessage(messageBytes)

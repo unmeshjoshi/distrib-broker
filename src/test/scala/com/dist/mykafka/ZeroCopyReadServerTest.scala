@@ -15,8 +15,8 @@ class ZeroCopyReadServerTest extends FunSuite {
     //create partition and append few messages
     val p = new Partition("topic1", 0, TestUtils.tempDir())
     assert(p.logFile.exists())
-    p.append("k1", "m1".getBytes)
-    p.append("k2", "m2".getBytes)
+    p.append("k1".getBytes(), "m1".getBytes)
+    p.append("k2".getBytes(), "m2".getBytes)
 
     //start a socket server to accept socket connections to read from the partition
     val serverSocketAddress = startPartitionSocketServer(p)

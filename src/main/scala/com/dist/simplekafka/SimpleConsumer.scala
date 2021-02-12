@@ -9,6 +9,35 @@ import com.dist.simplekafka.util.Utils
 
 class SimpleConsumer(bootstrapBroker: InetAddressAndPort, socketClient:SocketClient = new SocketClient) extends Logging {
   val correlationId = new AtomicInteger(0)
+  val consumerId = "consumer1"
+  val groupId = "default"
+
+  def consume(topic: String, partition:Int) = {
+
+  }
+
+  def findCoordinator() = {
+    var leaderId = -1
+    var coordinatorResponse:FindCoordinatorResponse = null
+    while(leaderId == -1) {
+      val request = RequestOrResponse(RequestKeys.FindCoordinatorKey, JsonSerDes.serialize(FindCoordinatorRequest(groupId, "Group")), 1)
+      val response = socketClient.sendReceiveTcp(request, bootstrapBroker)
+      val findCoordinatorResponse = JsonSerDes.deserialize(response.messageBodyJson.getBytes(), classOf[FindCoordinatorResponse])
+      coordinatorResponse = findCoordinatorResponse
+      leaderId = coordinatorResponse.partitionInfo.leader.id
+    }
+    coordinatorResponse
+  }
+
+  var lastCommitedOffset = 0;
+  def commitOffset(offset:Int)={
+    val coordinatorResponse = findCoordinator()
+    val coordinator = coordinatorResponse.partitionInfo.leader
+    val request = RequestOrResponse(RequestKeys.OffsetCommitRequest, JsonSerDes.serialize(OffsetCommitRequest(groupId, consumerId, offset, coordinatorResponse.topicPartition)), correlationId.getAndIncrement())
+    val response = socketClient.sendReceiveTcp(request, InetAddressAndPort.create(coordinator.host, coordinator.port))
+    val offsetResponse = JsonSerDes.deserialize(response.messageBodyJson.getBytes(), classOf[FetchOffsetResponse])
+    lastCommitedOffset = offsetResponse.offset
+  }
 
   def consume(topic: String) = {
     val result = new java.util.HashMap[String, String]()

@@ -21,6 +21,10 @@ object RequestKeys {
   val UpdateMetadataKey: Short = 6
   val ControlledShutdownKey: Short = 7
   val FindCoordinatorKey:Short = 8
+  val FindCoordinator:Short = 9
+  val FindGroupCoordinator:Short = 10
+  val OffsetCommitRequest:Short = 11
+
 }
 
 case class RequestOrResponse(val requestId: Short, val messageBodyJson: String, val correlationId: Int) {

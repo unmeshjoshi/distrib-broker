@@ -9,7 +9,7 @@ class PartitionTest extends FunSuite {
     val p = new Partition("topic1", 0, TestUtils.tempDir())
     assert(p.logFile.exists())
 
-    val offset = p.append("k1", "m1".getBytes)
+    val offset = p.append("k1".getBytes, "m1".getBytes)
     assert(offset == 1)
 
     val messages = p.read(offset)
@@ -21,16 +21,16 @@ class PartitionTest extends FunSuite {
     val p = new Partition("topic1", 0, TestUtils.tempDir())
     assert(p.logFile.exists())
 
-    val offset1 = p.append("k1", "m1".getBytes)
-    val offset2 = p.append("k2", "m2".getBytes)
-    val offset3 = p.append("k3", "m3".getBytes)
+    val offset1 = p.append("k1".getBytes, "m1".getBytes)
+    val offset2 = p.append("k2".getBytes, "m2".getBytes)
+    val offset3 = p.append("k3".getBytes, "m3".getBytes)
     assert(offset3 == 3)
 
     val messages = p.read(offset2)
     assert(messages.size == 1)
     assert(messages(0) == "m2")
 
-    val offset4 = p.append("k4", "m4".getBytes)
+    val offset4 = p.append("k4".getBytes, "m4".getBytes)
     assert(offset4 == 4)
 
   }
