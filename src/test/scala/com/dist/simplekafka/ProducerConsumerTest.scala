@@ -38,6 +38,9 @@ class ProducerConsumerTest extends ZookeeperTestHarness with Logging {
 
     val bootstrapBroker = InetAddressAndPort.create(broker2.config.hostName, broker2.config.port)
     val simpleProducer = new SimpleProducer(bootstrapBroker)
+
+    simpleProducer.initTransaction()
+
     val offset1 = simpleProducer.produce("topic1", "key1", "message1")
     assert(offset1 == 1) //first offset
 
@@ -49,8 +52,6 @@ class ProducerConsumerTest extends ZookeeperTestHarness with Logging {
     assert(offset3 == 2) //offset on first partition
 
     val simpleConsumer = new SimpleConsumer(bootstrapBroker)
-
-    val response = Coordinator.findCoordinator(new SocketClient(), bootstrapBroker, "producer1", FindCoordinatorRequest.TRANSACTION_COORDINATOR)
 
     val messages = simpleConsumer.consume("topic1")
     simpleConsumer.commitOffset(2);

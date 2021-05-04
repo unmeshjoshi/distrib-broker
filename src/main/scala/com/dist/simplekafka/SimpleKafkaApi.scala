@@ -23,7 +23,7 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) {
   }
 
   def partitionFor(key: String)  = {
-    Utils.abs(key.hashCode) % TransactionLog.DefaultNumPartitions
+    Utils.abs(key.hashCode) % TransactionLog.DefaultNumPartitions //TODO: Have different methods for group coordinator and txn coordinator
   }
 
   def handle(request: RequestOrResponse): RequestOrResponse = {
@@ -85,17 +85,79 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) {
         }
         RequestOrResponse(RequestKeys.FindCoordinatorKey, JsonSerDes.serialize(FindCoordinatorResponse(TopicAndPartition(GROUP_METADATA_TOPIC_NAME, partition), partitionInfo)), request.correlationId)
       }
-      case RequestKeys.OffsetCommitRequest => {
+      case RequestKeys.OffsetCommitRequestKey => {
         val offsetCommitRequest= JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[OffsetCommitRequest])
         val partition = replicaManager.getPartition(offsetCommitRequest.topicAndPartition)
         partition.append(s"${offsetCommitRequest.groupId}_${offsetCommitRequest.consumerId}", s"$offsetCommitRequest.offset")
-        RequestOrResponse(RequestKeys.OffsetCommitRequest,
+        RequestOrResponse(RequestKeys.OffsetCommitRequestKey,
           JsonSerDes.serialize(FetchOffsetResponse(offsetCommitRequest.groupId, offsetCommitRequest.consumerId, offsetCommitRequest.offset)), request.correlationId)
+      }
+      case RequestKeys.InitProducerIdRequestKey => {
+        val initProducerIdRequest: InitProducerIdRequest= JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[InitProducerIdRequest])
+        val transactionCoordPartition = partitionFor(initProducerIdRequest.transactionalId)
+        //TODO: Put this entry while handling leaderandisr request.
+        if (transactionMetadataCache.get(transactionCoordPartition) == None) {
+          transactionMetadataCache.put(transactionCoordPartition, TxnMetadataCacheEntry())
+        }
+        val maybeEntry = transactionMetadataCache.get(transactionCoordPartition)
+        val time = System.currentTimeMillis();
+        val producerId = 1 //TODO: Generate ProducerId
+        val metadata = TransactionMetadata(initProducerIdRequest.transactionalId,
+          producerId, 100, TransactionState.Empty, collection.mutable.Set.empty[TopicAndPartition], time, time)
+        maybeEntry.flatMap(m => {
+          m.metadataPerTransactionalId.put(initProducerIdRequest.transactionalId,
+            metadata)
+        })
+
+        val partition = replicaManager.getOrCreatePartition(TopicAndPartition(TRANSACTION_STATE_TOPIC_NAME, transactionCoordPartition))
+        partition.append(initProducerIdRequest.transactionalId, JsonSerDes.serialize(metadata))
+        RequestOrResponse(RequestKeys.InitProducerIdRequestKey,
+          JsonSerDes.serialize(InitProducerIdResponse(s"$producerId")), request.correlationId)
+      }
+      case RequestKeys.AddOffsetToTransactionKey => {
+        val sendOffsetToTransactionRequest: AddOffsetToTransactionRequest= JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[AddOffsetToTransactionRequest])
+        val offsetTopicPartition = new TopicAndPartition(GROUP_METADATA_TOPIC_NAME, partitionFor(sendOffsetToTransactionRequest.groupId))
+        val transactionalId = sendOffsetToTransactionRequest.transactionalId
+        val transactionCoordPartition = partitionFor(transactionalId)
+        val cacheEntry = transactionMetadataCache.get(transactionCoordPartition).get
+        val txnMetadata:TransactionMetadata = cacheEntry.metadataPerTransactionalId.get(transactionalId).get
+        val txnTimestamp = System.currentTimeMillis();
+        txnMetadata.prepareAddPartitions(List(offsetTopicPartition), txnTimestamp)
+        val partition = replicaManager.getOrCreatePartition(TopicAndPartition(TRANSACTION_STATE_TOPIC_NAME, transactionCoordPartition))
+        //add to transaction log
+        partition.append(sendOffsetToTransactionRequest.transactionalId, JsonSerDes.serialize(txnMetadata))
+        RequestOrResponse(RequestKeys.AddOffsetToTransactionKey,
+          JsonSerDes.serialize(AddOffsetToTransactionResponse("")), request.correlationId)
+      }
+      case RequestKeys.AddPartitionsToTransactionKey => {
+        val addPartitionsToTransaction = JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[AddPartitionsToTransaction])
+        val transactionalId = addPartitionsToTransaction.transactionalId
+        val transactionCoordPartition = partitionFor(transactionalId)
+        val cacheEntry = transactionMetadataCache.get(transactionCoordPartition).get
+        val txnMetadata:TransactionMetadata = cacheEntry.metadataPerTransactionalId.get(transactionalId).get
+        val txnTimestamp = System.currentTimeMillis();
+        txnMetadata.prepareAddPartitions(addPartitionsToTransaction.partitions.toList, txnTimestamp)
+        val partition = replicaManager.getOrCreatePartition(TopicAndPartition(TRANSACTION_STATE_TOPIC_NAME, transactionCoordPartition))
+        //add to transaction log
+        partition.append(transactionalId, JsonSerDes.serialize(txnMetadata))
+
+        RequestOrResponse(RequestKeys.AddPartitionsToTransactionKey,
+          JsonSerDes.serialize(AddPartitionsToTransactionResponse("")), request.correlationId)
+
+      }
+      case RequestKeys.EndTransactionKey => {
+        val endTransactionRequest = JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[EndTransactionRequest])
+        val transactionalId = endTransactionRequest.transactionalId
+        val transactionCoordPartition = partitionFor(transactionalId)
+        val cacheEntry = transactionMetadataCache.get(transactionCoordPartition).get
+        RequestOrResponse(RequestKeys.EndTransactionKey,
+          JsonSerDes.serialize(AddPartitionsToTransactionResponse("")), request.correlationId)
       }
       case _ ⇒ RequestOrResponse(0, "Unknown Request", request.correlationId)
     }
   }
 
+  val transactionMetadataCache: mutable.Map[Int, TxnMetadataCacheEntry] = mutable.Map()
   private def getTopicMetadata(topicName: String) = {
     val topicAndPartitions = leaderCache.keySet().asScala.filter(topicAndPartition ⇒ topicAndPartition.topic == topicName)
     topicAndPartitions

@@ -10,8 +10,6 @@ object Request {
 
 
 object RequestKeys {
-  val BrokerHeartbeat: Short = 9
-
   val ProduceKey: Short = 0
   val FetchKey: Short = 1
   val OffsetsKey: Short = 2
@@ -21,10 +19,12 @@ object RequestKeys {
   val UpdateMetadataKey: Short = 6
   val ControlledShutdownKey: Short = 7
   val FindCoordinatorKey:Short = 8
-  val FindCoordinator:Short = 9
-  val FindGroupCoordinator:Short = 10
-  val OffsetCommitRequest:Short = 11
-
+  val OffsetCommitRequestKey:Short = 10
+  val BrokerHeartbeat: Short = 9
+  val InitProducerIdRequestKey:Short = 11
+  val AddOffsetToTransactionKey:Short = 12
+  val AddPartitionsToTransactionKey:Short = 13
+  val EndTransactionKey: Short = 14
 }
 
 case class RequestOrResponse(val requestId: Short, val messageBodyJson: String, val correlationId: Int) {

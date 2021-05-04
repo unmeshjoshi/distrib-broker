@@ -35,7 +35,7 @@ class SimpleConsumer(bootstrapBroker: InetAddressAndPort, socketClient:SocketCli
   def commitOffset(offset:Int)={
     val coordinatorResponse = Coordinator.findCoordinator(socketClient, bootstrapBroker, groupId, FindCoordinatorRequest.GROUP_COORDINATOR)
     val coordinator = coordinatorResponse.partitionInfo.leader
-    val request = RequestOrResponse(RequestKeys.OffsetCommitRequest, JsonSerDes.serialize(OffsetCommitRequest(groupId, consumerId, offset, coordinatorResponse.topicPartition)), correlationId.getAndIncrement())
+    val request = RequestOrResponse(RequestKeys.OffsetCommitRequestKey, JsonSerDes.serialize(OffsetCommitRequest(groupId, consumerId, offset, coordinatorResponse.topicPartition)), correlationId.getAndIncrement())
     val response = socketClient.sendReceiveTcp(request, InetAddressAndPort.create(coordinator.host, coordinator.port))
     val offsetResponse = JsonSerDes.deserialize(response.messageBodyJson.getBytes(), classOf[FetchOffsetResponse])
     lastCommitedOffset = offsetResponse.offset
