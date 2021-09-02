@@ -1,12 +1,14 @@
 package com.dist.simplekafka
 
+import com.dist.simplekafka.server.Config
+
 import java.io.{DataOutputStream, File, RandomAccessFile}
 import java.util.HashMap
 import java.util.concurrent.atomic.AtomicInteger
 import scala.jdk.CollectionConverters._
 
-class SequenceFile {
-  def getAllOffSetsFrom(offset: Long) = offsetIndexes.keySet().asScala.filter(i ⇒ i >= offset)
+class SequenceFile(config:Config) {
+  def getAllOffSetsFrom(fromOffset: Long, toOffset:Long) = offsetIndexes.keySet().asScala.filter(i ⇒ i >= fromOffset && i < toOffset)
 
   val keyIndexes = new HashMap[String, Long]()
   val offsetIndexes = new HashMap[Long, Long]()
@@ -51,6 +53,7 @@ class SequenceFile {
       keyIndexes.put(key, filePosition)
       val currentOffset = offset.incrementAndGet()
       offsetIndexes.put(currentOffset, filePosition)
+      println("storing offset " + currentOffset + " for key " + key + " in " + config.brokerId)
       currentOffset
     }
 

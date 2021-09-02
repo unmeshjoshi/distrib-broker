@@ -1,6 +1,5 @@
 package com.dist.simplekafka
 
-import akka.actor.ActorSystem
 import com.dist.common.{TestUtils, ZookeeperTestHarness}
 import com.dist.simplekafka.common.Logging
 import com.dist.simplekafka.network.InetAddressAndPort
@@ -53,8 +52,9 @@ class ProducerConsumerTest extends ZookeeperTestHarness with Logging {
 
     val simpleConsumer = new SimpleConsumer(bootstrapBroker)
 
+    simpleProducer.commitTransaction()
+
     val messages = simpleConsumer.consume("topic1")
-    simpleConsumer.commitOffset(2);
 
     assert(messages.size() == 3)
     assert(messages.get("key1") == "message1")

@@ -25,6 +25,7 @@ object RequestKeys {
   val AddOffsetToTransactionKey:Short = 12
   val AddPartitionsToTransactionKey:Short = 13
   val EndTransactionKey: Short = 14
+  val WriteTxnsMarkerRequestKey: Short = 15
 }
 
 case class RequestOrResponse(val requestId: Short, val messageBodyJson: String, val correlationId: Int) {

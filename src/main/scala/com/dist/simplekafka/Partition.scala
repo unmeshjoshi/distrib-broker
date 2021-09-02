@@ -1,10 +1,5 @@
 package com.dist.simplekafka
 
-import java.io._
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
-import java.util
-import java.util.stream.Collectors
-
 import akka.actor.{ActorRef, ActorSystem}
 import akka.stream.OverflowStrategy
 import akka.stream.scaladsl.Source
@@ -14,6 +9,10 @@ import com.dist.simplekafka.network.InetAddressAndPort
 import com.dist.simplekafka.server.Config
 import com.dist.simplekafka.util.ZkUtils.Broker
 
+import java.io._
+import java.util
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
+import java.util.concurrent.locks.ReentrantLock
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.DurationInt
@@ -30,18 +29,17 @@ case object FetchHighWatermark extends FetchIsolation
 case object FetchTxnCommitted extends FetchIsolation
 
 class Partition(config: Config, topicAndPartition: TopicAndPartition)(implicit system: ActorSystem) extends Logging {
-  val replicaOffsets = new util.HashMap[Int, Long]
-  var highWatermark = 0
-  def updateLeaderHWAndMaybeExpandIsr(replicaId: Int, offset: Int) = {
-    replicaOffsets.put(replicaId, offset)
+  private val lock = new ReentrantLock()
 
-    //complete this..
-  }
+  val producerStateManager = new ProducerStateManager(topicAndPartition)
+  val replicaOffsets = new util.HashMap[Int, Long]
+  var highWatermark = 0l;
+
   val LogFileSuffix = ".log"
   val logFile =
     new File(config.logDirs(0), topicAndPartition.topic + "-" + topicAndPartition.partition + LogFileSuffix)
 
-  val sequenceFile = new SequenceFile()
+  val sequenceFile = new SequenceFile(config)
   val reader = new sequenceFile.Reader(logFile.getAbsolutePath)
   val writer = new sequenceFile.Writer(logFile.getAbsolutePath)
 
@@ -60,7 +58,7 @@ class Partition(config: Config, topicAndPartition: TopicAndPartition)(implicit s
 
   def addFetcher(topicAndPartition: TopicAndPartition, initialOffset: Long, leaderBroker: Broker) {
     var fetcherThread: ReplicaFetcherThread = null
-    val key = new BrokerAndFetcherId(leaderBroker, getFetcherId(topicAndPartition))
+    val key = BrokerAndFetcherId(leaderBroker, getFetcherId(topicAndPartition))
     fetcherThreadMap.get(key) match {
       case Some(f) => fetcherThread = f
       case None =>
@@ -107,7 +105,6 @@ class Partition(config: Config, topicAndPartition: TopicAndPartition)(implicit s
       if (!topicPartitions.isEmpty) {
         val topicPartition = topicPartitions(0) //expect only only for now.
         val consumeRequest = ConsumeRequest(topicPartition, parition.sequenceFile.lastOffset() + 1, config.brokerId)
-        //        info(s"Fetching messages from offset ${parition.sequenceFile.lastOffset()} for topic partition ${topicPartition} in broker ${config.brokerId}")
         val request = RequestOrResponse(RequestKeys.FetchKey, JsonSerDes.serialize(consumeRequest), correlationId.getAndIncrement())
         val response = socketClient.sendReceiveTcp(request, InetAddressAndPort.create(leaderBroker.host, leaderBroker.port))
         val consumeResponse = JsonSerDes.deserialize(response.messageBodyJson.getBytes(), classOf[ConsumeResponse])
@@ -147,9 +144,57 @@ class Partition(config: Config, topicAndPartition: TopicAndPartition)(implicit s
     Await.result(p.future, 1.second)
   }
 
-  def append(key: String, message: String) = {
+  def completeTransaction(writeTxnMarkersRequest: WriteTxnMarkersRequest) = {
+    lock.lock()
+    try {
+      val endOffset = append(writeTxnMarkersRequest.transactionalId, JsonSerDes.serialize(writeTxnMarkersRequest))
+      producerStateManager.completeTxn(writeTxnMarkersRequest.producerId, writeTxnMarkersRequest.transactionalId, endOffset)
+    } finally {
+      lock.unlock()
+    }
+  }
+
+
+  def append(transactionalId:String, producerId:Long, key: String, message: String):Int = {
+    lock.lock()
+    try {
+      val offset = append(key, message)
+      producerStateManager.append(transactionalId, producerId, offset, key, message)
+      maybeIncrementFirstUnstableOffset()
+      offset
+    } finally {
+      lock.unlock()
+    }
+  }
+  private var firstUnstableOffsetMetadata: Option[Long] = None
+
+
+  private def fetchLastStableOffsetMetadata: Long = {
+    // cache the current high watermark to avoid a concurrent update invalidating the range check
+    val highWatermarkMetadata = highWatermark
+
+    firstUnstableOffsetMetadata match {
+      case Some(offsetMetadata) if offsetMetadata < highWatermarkMetadata =>
+          offsetMetadata
+       case _ => highWatermarkMetadata
+    }
+  }
+
+  def maybeIncrementFirstUnstableOffset() = {
+    val updatedFirstStableOffset: Option[Long] = producerStateManager.firstUnstableOffset()
+
+    if (updatedFirstStableOffset != this.firstUnstableOffsetMetadata) {
+      info(s"First unstable offset updated to $updatedFirstStableOffset in" + config.brokerId)
+      this.firstUnstableOffsetMetadata = updatedFirstStableOffset
+    }
+  }
+
+  def append(key: String, message: String):Int = {
     val currentPos = writer.getCurrentPosition
-    try writer.append(key, message)
+    try {
+      val offset = writer.append(key, message)
+      offset
+    }
     catch {
       case e: IOException =>
         writer.seek(currentPos)
@@ -159,38 +204,58 @@ class Partition(config: Config, topicAndPartition: TopicAndPartition)(implicit s
 
   private val remoteReplicasMap = new util.HashMap[Int, Long]
 
-  var highWaterMark = 0l;
+
   def updateLastReadOffsetAndHighWaterMark(replicaId: Int, offset: Long) = {
-    remoteReplicasMap.put(replicaId, offset)
-    val values = remoteReplicasMap.values().asScala.toList.sorted.reverse
-    highWaterMark = values(0)
-//    info(s"Updated highwatermark to ${highWaterMark} for ${this.topicAndPartition} on ${config.brokerId}")
+    lock.lock()
+    try {
+      remoteReplicasMap.put(replicaId, offset)
+      val values = remoteReplicasMap.values().asScala.toList.sorted
+      if (highWatermark < values(0)) {
+        highWatermark = values(0)
+        info(s"Updated highwatermark to ${highWatermark} for ${this.topicAndPartition} on ${config.brokerId}")
+        producerStateManager.removeUnreplicatedTransactions(highWatermark) //transaction records are replicated.
+      }
+      maybeIncrementFirstUnstableOffset()
+    } finally {
+      lock.unlock()
+    }
   }
 
 
   def read(offset: Long = 0, replicaId: Int = -1, isolation: FetchIsolation = FetchLogEnd):List[Row] = {
-    if (isolation == FetchHighWatermark && offset > highWaterMark) {
-      return List[Row]()
-    }
+    lock.lock()
+    try {
+      val maxOffset: Long =
+        if (isolation == FetchTxnCommitted) fetchLastStableOffsetMetadata
+        else if (isolation == FetchHighWatermark) highWatermark
+        else sequenceFile.lastOffset()
 
-    val result = new java.util.ArrayList[Row]()
-    val offsets = sequenceFile.getAllOffSetsFrom(offset)
-    offsets.foreach(offset ⇒ {
-      val filePosition = sequenceFile.offsetIndexes.get(offset)
-
-      val ba = new ByteArrayOutputStream()
-      val baos = new DataOutputStream(ba)
-
-      reader.seekToOffset(filePosition)
-      reader.next(baos)
-
-      val bais = new DataInputStream(new ByteArrayInputStream(ba.toByteArray))
-      Try(Row.deserialize(bais)) match {
-        case Success(row) => result.add(row)
-        case Failure(exception) => None
+      if (offset > maxOffset) {
+        return List[Row]()
       }
-    })
-    result.asScala.toList
+
+      val result = new java.util.ArrayList[Row]()
+      val offsets: mutable.Set[Long] = sequenceFile.getAllOffSetsFrom(offset, maxOffset)
+
+      offsets.foreach(offset ⇒ {
+        val filePosition = sequenceFile.offsetIndexes.get(offset)
+
+        val ba = new ByteArrayOutputStream()
+        val baos = new DataOutputStream(ba)
+
+        reader.seekToOffset(filePosition)
+        reader.next(baos)
+
+        val bais = new DataInputStream(new ByteArrayInputStream(ba.toByteArray))
+        Try(Row.deserialize(bais)) match {
+          case Success(row) => result.add(row)
+          case Failure(exception) => None
+        }
+      })
+      result.asScala.toList
+    } finally {
+      lock.unlock()
+    }
   }
 
 

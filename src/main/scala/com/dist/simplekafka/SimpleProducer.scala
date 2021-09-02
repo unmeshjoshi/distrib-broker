@@ -8,10 +8,6 @@ import com.dist.simplekafka.util.{Utils, ZkUtils}
 
 import java.util
 
-
-
-
-
 class SimpleProducer(bootstrapBroker: InetAddressAndPort, socketClient:SocketClient = new SocketClient) extends Logging {
   val correlationId = new AtomicInteger(0)
   private var newPartitionsInTransaction: util.Set[TopicAndPartition] = new util.HashSet[TopicAndPartition]();
@@ -24,7 +20,7 @@ class SimpleProducer(bootstrapBroker: InetAddressAndPort, socketClient:SocketCli
 
     newPartitionsInTransaction.add(TopicAndPartition(topic, partitionId))
 
-    val produceRequest = ProduceRequest(TopicAndPartition(topic, partitionId), key, message)
+    val produceRequest = ProduceRequest(TopicAndPartition(topic, partitionId), key, message, transactionalId, producerId)
     val producerRequest = RequestOrResponse(RequestKeys.ProduceKey, JsonSerDes.serialize(produceRequest), correlationId.incrementAndGet())
     val produceResponse = socketClient.sendReceiveTcp(producerRequest, InetAddressAndPort.create(leaderBroker.host, leaderBroker.port))
     val response1 = JsonSerDes.deserialize(produceResponse.messageBodyJson.getBytes(), classOf[ProduceResponse])
@@ -76,13 +72,17 @@ class SimpleProducer(bootstrapBroker: InetAddressAndPort, socketClient:SocketCli
 
 
   val transactionalId = "producer1"
-  var producerId:String = _
+  var producerId:Long = RecordBatch.NO_PRODUCER_ID
   def initTransaction(): Unit = {
     val coordinatorNode: ZkUtils.Broker = findTxnCoordinator
-    val request = RequestOrResponse(RequestKeys.InitProducerIdRequestKey, JsonSerDes.serialize(InitProducerIdRequest(transactionalId)), correlationId.getAndIncrement())
+    val request = createRequest(RequestKeys.InitProducerIdRequestKey, InitProducerIdRequest(transactionalId))
     val response = socketClient.sendReceiveTcp(request, InetAddressAndPort.create(coordinatorNode.host, coordinatorNode.port))
     val initProducerIdResponse = JsonSerDes.deserialize(response.messageBodyJson.getBytes(), classOf[InitProducerIdResponse])
-    producerId = initProducerIdResponse.producerId
+    producerId = initProducerIdResponse.producerId.toLong
+  }
+
+  private def createRequest(key: Short, request: Any) = {
+    RequestOrResponse(key, JsonSerDes.serialize(request), correlationId.getAndIncrement())
   }
 
   def addOffsetsToTransaction(offsets: Map[TopicAndPartition, Int], groupId:String): Unit = {

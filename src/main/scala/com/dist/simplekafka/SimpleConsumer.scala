@@ -8,11 +8,11 @@ import com.dist.simplekafka.network.InetAddressAndPort
 import com.dist.simplekafka.util.Utils
 
 object Coordinator {
-  def findCoordinator(socketClient:SocketClient, bootstrapBroker: InetAddressAndPort, key:String, coordinatorType:String) = {
+  def findCoordinator(socketClient:SocketClient, bootstrapBroker: InetAddressAndPort, transactionalId:String, coordinatorType:String) = {
     var leaderId = -1
     var coordinatorResponse:FindCoordinatorResponse = null
     while(leaderId == -1) {
-      val request = RequestOrResponse(RequestKeys.FindCoordinatorKey, JsonSerDes.serialize(FindCoordinatorRequest(key, coordinatorType)), 1)
+      val request = RequestOrResponse(RequestKeys.FindCoordinatorKey, JsonSerDes.serialize(FindCoordinatorRequest(transactionalId, coordinatorType)), 1)
       val response = socketClient.sendReceiveTcp(request, bootstrapBroker)
       val findCoordinatorResponse = JsonSerDes.deserialize(response.messageBodyJson.getBytes(), classOf[FindCoordinatorResponse])
       coordinatorResponse = findCoordinatorResponse

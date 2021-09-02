@@ -73,12 +73,23 @@ class TcpListener(localEp: InetAddressAndPort, kafkaApis: SimpleKafkaApi, socket
       info(s"Listening on ${localEp}")
       while (true) {
         val socket = serverSocket.accept()
-        new SocketIO(socket, classOf[RequestOrResponse]).readHandleRespond((request) ⇒ {
-          val response = kafkaApis.handle(request)
-          response
-        })
+        new Thread(()=>processConnection(socket)).start()
       }
     }
     )
+  }
+
+  private def processConnection(socket: Socket) = {
+    new SocketIO(socket, classOf[RequestOrResponse]).readHandleRespond((request) ⇒ {
+      try {
+        val response = kafkaApis.handle(request)
+        response
+      } catch {
+        case e: Exception => {
+          e.printStackTrace()
+          throw e
+        }
+      }
+    })
   }
 }
