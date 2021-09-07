@@ -44,7 +44,7 @@ class ProducerConsumerKIP500Test extends ZookeeperTestHarness with Logging {
     assert(offset3 == 2) //offset on first partition
 
     val simpleConsumer = new SimpleConsumer(bootstrapBroker)
-    val messages = simpleConsumer.consume("topic1")
+    val messages = simpleConsumer.consume("topic1", FetchHighWatermark)
 
     assert(messages.size() == 3)
     assert(messages.get("key1") == "message1")

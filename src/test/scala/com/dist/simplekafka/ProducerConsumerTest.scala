@@ -1,7 +1,7 @@
 package com.dist.simplekafka
 
 import com.dist.common.{TestUtils, ZookeeperTestHarness}
-import com.dist.simplekafka.common.Logging
+import com.dist.simplekafka.common.{Logging, TopicAndPartition}
 import com.dist.simplekafka.network.InetAddressAndPort
 import com.dist.simplekafka.server.Config
 import com.dist.util.Networks
@@ -50,16 +50,21 @@ class ProducerConsumerTest extends ZookeeperTestHarness with Logging {
 
     assert(offset3 == 2) //offset on first partition
 
-    val simpleConsumer = new SimpleConsumer(bootstrapBroker)
-
-    simpleProducer.commitTransaction()
-
-    val messages = simpleConsumer.consume("topic1")
-
+    val txnConsumer = new SimpleConsumer(bootstrapBroker)
+    val messages = txnConsumer.consume("topic1", FetchHighWatermark)
     assert(messages.size() == 3)
     assert(messages.get("key1") == "message1")
     assert(messages.get("key2") == "message2")
     assert(messages.get("key3") == "message3")
+
+    val nonTxnConsumer = new SimpleConsumer(bootstrapBroker)
+    assert(nonTxnConsumer.consume("topic1", FetchTxnCommitted).size() == 0)
+
+    simpleProducer.sendOffsetsToTransaction(Map(TopicAndPartition("topic1", 0) -> 1), "group1")
+    simpleProducer.commitTransaction()
+
+    val committedMessages = nonTxnConsumer.consume("topic1", FetchTxnCommitted)
+    assert(committedMessages.size() == 3)
   }
 
   private def leaderCache(broker: Server) = {

@@ -1,11 +1,12 @@
 package com.dist.simplekafka
 
-import java.util.concurrent.atomic.AtomicInteger
-
 import com.dist.simplekafka.api.{RequestKeys, RequestOrResponse}
 import com.dist.simplekafka.common.{JsonSerDes, Logging, TopicAndPartition}
 import com.dist.simplekafka.network.InetAddressAndPort
 import com.dist.simplekafka.util.Utils
+
+import java.util
+import java.util.concurrent.atomic.AtomicInteger
 
 object Coordinator {
   def findCoordinator(socketClient:SocketClient, bootstrapBroker: InetAddressAndPort, transactionalId:String, coordinatorType:String) = {
@@ -41,21 +42,27 @@ class SimpleConsumer(bootstrapBroker: InetAddressAndPort, socketClient:SocketCli
     lastCommitedOffset = offsetResponse.offset
   }
 
-  def consume(topic: String) = {
+  def filterTransactionMarkers(result: util.HashMap[String, String]) = {
+    result
+  }
+
+  def consume(topic: String, fetchIsolation: FetchIsolation)  = {
     val result = new java.util.HashMap[String, String]()
     val topicMetadata: Map[TopicAndPartition, PartitionInfo] = fetchTopicMetadata(topic)
     topicMetadata.foreach(tp ⇒ {
       val topicPartition = tp._1
       val partitionInfo = tp._2
       val leader = partitionInfo.leader
-      val request = RequestOrResponse(RequestKeys.FetchKey, JsonSerDes.serialize(ConsumeRequest(topicPartition)), correlationId.getAndIncrement())
+      val request = RequestOrResponse(RequestKeys.FetchKey, JsonSerDes.serialize(ConsumeRequest(topicPartition, fetchIsolation.toString)), correlationId.getAndIncrement())
       val response = socketClient.sendReceiveTcp(request, InetAddressAndPort.create(leader.host, leader.port))
       val consumeResponse = JsonSerDes.deserialize(response.messageBodyJson.getBytes(), classOf[ConsumeResponse])
       consumeResponse.messages.foreach(m ⇒ {
-        result.put(m._1, m._2)
+        if (!(m._1 == "producer1")) {
+          result.put(m._1, m._2)
+        }
       })
     })
-    result
+    filterTransactionMarkers(result)
   }
 
   private def fetchTopicMetadata(topic: String) = {

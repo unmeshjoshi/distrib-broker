@@ -70,6 +70,7 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) extends Log
           }
           val partition = replicaManager.getPartition(produceRequest.topicAndPartition)
           val offset = partition.append(produceRequest.transactionalId, produceRequest.producerId, produceRequest.key, produceRequest.message)
+          waitUntilTrue(()=> offset == partition.highWatermark, "Waiting for message to replicate")
           RequestOrResponse(RequestKeys.ProduceKey, JsonSerDes.serialize(ProduceResponse(offset)), request.correlationId)
         }
         case RequestKeys.FetchKey ⇒ {
@@ -80,7 +81,7 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) extends Log
           val isolation = if (isRequestFromReplica(consumeRequest)) {
             FetchLogEnd
           } else {
-            FetchTxnCommitted
+            if (consumeRequest.isolation == FetchTxnCommitted.toString) FetchTxnCommitted else FetchHighWatermark
           }
           val rows = if (partition == null) {
             List()
@@ -187,10 +188,14 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) extends Log
             cacheEntry.metadataPerTransactionalId.put(transactionalId, newStateMetadata)
 
             cacheEntry.metadataPerTransactionalId.get(transactionalId).topicPartitions.foreach(tp => {
-              val partitionInfo = getPartitionDetails(tp.topic)
-              val leader: Broker = partitionInfo.get(tp).get.leader
-              sendEndTransactionMarker(leader, transactionalId, endTransactionRequest.producerId, tp);
-            })
+              try {
+                val partitionInfo = getPartitionDetails(tp.topic)
+                val leader: Broker = partitionInfo.get(tp).get.leader
+                sendEndTransactionMarker(leader, transactionalId, endTransactionRequest.producerId, tp);
+              } catch {
+                case e:Exception => e.printStackTrace()
+              }
+              })
 
             val newStateMetadata1 = txnMetadata.completeCommit()
             cacheEntry.metadataPerTransactionalId.put(transactionalId, newStateMetadata1)
@@ -322,4 +327,19 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) extends Log
                        val partition: Partition,
                        initialHighWatermarkValue: Long = 0L)
 
+  def waitUntilTrue(condition: () => Boolean, msg: => String,
+                    waitTimeMs: Long = 1000, pause: Long = 100L): Unit = {
+    val startTime = System.currentTimeMillis()
+    while (true) {
+      if (condition())
+        return
+      if (System.currentTimeMillis() > startTime + waitTimeMs)
+        throw new RuntimeException(msg)
+
+      Thread.sleep(waitTimeMs.min(pause))
+    }
+
+    // should never hit here
+    throw new RuntimeException("unexpected error")
+  }
 }

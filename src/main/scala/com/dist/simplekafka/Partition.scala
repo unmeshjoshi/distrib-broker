@@ -104,7 +104,7 @@ class Partition(config: Config, topicAndPartition: TopicAndPartition)(implicit s
       parition.sequenceFile.lastOffset();
       if (!topicPartitions.isEmpty) {
         val topicPartition = topicPartitions(0) //expect only only for now.
-        val consumeRequest = ConsumeRequest(topicPartition, parition.sequenceFile.lastOffset() + 1, config.brokerId)
+        val consumeRequest = ConsumeRequest(topicPartition, FetchLogEnd.toString, parition.sequenceFile.lastOffset() + 1, config.brokerId)
         val request = RequestOrResponse(RequestKeys.FetchKey, JsonSerDes.serialize(consumeRequest), correlationId.getAndIncrement())
         val response = socketClient.sendReceiveTcp(request, InetAddressAndPort.create(leaderBroker.host, leaderBroker.port))
         val consumeResponse = JsonSerDes.deserialize(response.messageBodyJson.getBytes(), classOf[ConsumeResponse])
@@ -175,7 +175,7 @@ class Partition(config: Config, topicAndPartition: TopicAndPartition)(implicit s
 
     firstUnstableOffsetMetadata match {
       case Some(offsetMetadata) if offsetMetadata < highWatermarkMetadata =>
-          offsetMetadata
+          offsetMetadata - 1
        case _ => highWatermarkMetadata
     }
   }
@@ -224,6 +224,7 @@ class Partition(config: Config, topicAndPartition: TopicAndPartition)(implicit s
 
   def read(offset: Long = 0, replicaId: Int = -1, isolation: FetchIsolation = FetchLogEnd):List[Row] = {
     lock.lock()
+    info("Reading partition "+ topicAndPartition + " for fetchIsolation " + isolation)
     try {
       val maxOffset: Long =
         if (isolation == FetchTxnCommitted) fetchLastStableOffsetMetadata

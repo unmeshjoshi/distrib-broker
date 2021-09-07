@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import scala.jdk.CollectionConverters._
 
 class SequenceFile(config:Config) {
-  def getAllOffSetsFrom(fromOffset: Long, toOffset:Long) = offsetIndexes.keySet().asScala.filter(i ⇒ i >= fromOffset && i < toOffset)
+  def getAllOffSetsFrom(fromOffset: Long, toOffset:Long) = offsetIndexes.keySet().asScala.filter(i ⇒ i >= fromOffset && i <= toOffset)
 
   val keyIndexes = new HashMap[String, Long]()
   val offsetIndexes = new HashMap[Long, Long]()

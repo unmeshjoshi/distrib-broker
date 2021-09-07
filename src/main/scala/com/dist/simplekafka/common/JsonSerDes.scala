@@ -1,5 +1,6 @@
 package com.dist.simplekafka.common
 
+import com.dist.simplekafka.FetchIsolation
 import com.dist.simplekafka.network.InetAddressAndPort
 import com.fasterxml.jackson.annotation.{JsonAutoDetect, PropertyAccessor}
 import com.fasterxml.jackson.core.`type`.TypeReference
@@ -29,6 +30,7 @@ object JsonSerDes {
     val module = new SimpleModule()
     module.addKeyDeserializer(classOf[TopicAndPartition], new TopicAndPartitionKeyDeserializer())
     module.addKeyDeserializer(classOf[InetAddressAndPort], new InetAddressAndPortKeyDeserializer())
+    module.addKeyDeserializer(classOf[FetchIsolation], new FetchIsolationDeserializer())
     objectMapper.registerModule(module)
     objectMapper.registerModule(DefaultScalaModule)
     objectMapper.readValue(json, clazz)
@@ -67,4 +69,13 @@ object JsonSerDes {
     objectMapper.readValue(json, typeRef)
   }
 
+  class FetchIsolationDeserializer extends KeyDeserializer {
+    override def deserializeKey(key: String, ctxt: DeserializationContext): AnyRef = {
+      if (key.startsWith("[") && key.endsWith("]")) {
+        val parts = key.substring(1, key.length - 1).split(',')
+        TopicAndPartition(parts(0), parts(1).toInt)
+      } else
+        throw new IllegalArgumentException(s"${key} is not valid topic partition")
+    }
+  }
 }

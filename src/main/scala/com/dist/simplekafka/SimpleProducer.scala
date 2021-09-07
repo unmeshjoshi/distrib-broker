@@ -85,7 +85,7 @@ class SimpleProducer(bootstrapBroker: InetAddressAndPort, socketClient:SocketCli
     RequestOrResponse(key, JsonSerDes.serialize(request), correlationId.getAndIncrement())
   }
 
-  def addOffsetsToTransaction(offsets: Map[TopicAndPartition, Int], groupId:String): Unit = {
+  def sendOffsetsToTransaction(offsets: Map[TopicAndPartition, Int], groupId:String): Unit = {
     val coordinatorNode: ZkUtils.Broker = findTxnCoordinator
     val request = RequestOrResponse(RequestKeys.AddOffsetToTransactionKey, JsonSerDes.serialize(AddOffsetToTransactionRequest(offsets, groupId, transactionalId)), correlationId.getAndIncrement())
     val response = socketClient.sendReceiveTcp(request, InetAddressAndPort.create(coordinatorNode.host, coordinatorNode.port))
