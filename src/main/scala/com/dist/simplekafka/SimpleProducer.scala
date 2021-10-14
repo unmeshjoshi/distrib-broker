@@ -19,6 +19,7 @@ class SimpleProducer(bootstrapBroker: InetAddressAndPort, socketClient:SocketCli
     val leaderBroker = leaderFor(topic, partitionId, topicPartitions)
 
     newPartitionsInTransaction.add(TopicAndPartition(topic, partitionId))
+    addPartitionsToTransaction()
 
     val produceRequest = ProduceRequest(TopicAndPartition(topic, partitionId), key, message, transactionalId, producerId)
     val producerRequest = RequestOrResponse(RequestKeys.ProduceKey, JsonSerDes.serialize(produceRequest), correlationId.incrementAndGet())
@@ -30,26 +31,30 @@ class SimpleProducer(bootstrapBroker: InetAddressAndPort, socketClient:SocketCli
 
   import scala.jdk.CollectionConverters._
 
+  //this should happen before the messages are produced for this topicpartition.
   def addPartitionsToTransaction(): Unit = {
     val coordinatorNode: ZkUtils.Broker = findTxnCoordinator
     val requestStr = JsonSerDes.serialize(AddPartitionsToTransaction(transactionalId, producerId, newPartitionsInTransaction.asScala.toSet))
     val request = RequestOrResponse(RequestKeys.AddPartitionsToTransactionKey, requestStr, correlationId.getAndIncrement())
     val response = socketClient.sendReceiveTcp(request, InetAddressAndPort.create(coordinatorNode.host, coordinatorNode.port))
     val addPartitionResponse = JsonSerDes.deserialize(response.messageBodyJson.getBytes(), classOf[AddPartitionsToTransactionResponse])
-
   }
 
-  def beginCommit(): Unit = {
+  def endTransaction(committed: Boolean): Unit = {
     val coordinatorNode: ZkUtils.Broker = findTxnCoordinator
-    val requestStr = JsonSerDes.serialize(EndTransactionRequest(transactionalId, producerId, true))
+    val requestStr = JsonSerDes.serialize(EndTransactionRequest(transactionalId, producerId, committed))
     val request = RequestOrResponse(RequestKeys.EndTransactionKey, requestStr, correlationId.getAndIncrement())
     val response = socketClient.sendReceiveTcp(request, InetAddressAndPort.create(coordinatorNode.host, coordinatorNode.port))
     val endTransactionResponse = JsonSerDes.deserialize(response.messageBodyJson.getBytes(), classOf[EndTransactionResponse])
+    //ignore response.
   }
 
   def commitTransaction(): Unit = {
-    addPartitionsToTransaction()
-    beginCommit();
+    endTransaction(true);
+  }
+
+  def rollbackTransaction(): Unit = {
+    endTransaction(false);
   }
 
   private def fetchTopicMetadata(topic: String) = {

@@ -175,32 +175,19 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) extends Log
           try {
             val endTransactionRequest = JsonSerDes.deserialize(request.messageBodyJson.getBytes(), classOf[EndTransactionRequest])
             val transactionalId = endTransactionRequest.transactionalId
+
             val transactionCoordPartition = partitionFor(transactionalId)
             val cacheEntry: TxnMetadataCacheEntry = transactionMetadataCache.get(transactionCoordPartition)
 
             val partition = replicaManager.getOrCreatePartition(TopicAndPartition(TRANSACTION_STATE_TOPIC_NAME, transactionCoordPartition))
+
             val txnMetadata: TransactionMetadata = cacheEntry.metadataPerTransactionalId.get(transactionalId)
-            //add to prepareToCommit state to transaction log
-            val newStateMetadata = txnMetadata.prepareCommit()
 
-            cacheEntry.metadataPerTransactionalId.put(transactionalId, newStateMetadata)
-            partition.append(transactionalId, JsonSerDes.serialize(newStateMetadata))
-            cacheEntry.metadataPerTransactionalId.put(transactionalId, newStateMetadata)
+            markTxnPreparingToCommit(transactionalId, cacheEntry, partition, txnMetadata)
 
-            cacheEntry.metadataPerTransactionalId.get(transactionalId).topicPartitions.foreach(tp => {
-              try {
-                val partitionInfo = getPartitionDetails(tp.topic)
-                val leader: Broker = partitionInfo.get(tp).get.leader
-                sendEndTransactionMarker(leader, transactionalId, endTransactionRequest.producerId, tp);
-              } catch {
-                case e:Exception => e.printStackTrace()
-              }
-              })
+            sendEndMarkersToParticipants(transactionalId, cacheEntry, endTransactionRequest.producerId)
 
-            val newStateMetadata1 = txnMetadata.completeCommit()
-            cacheEntry.metadataPerTransactionalId.put(transactionalId, newStateMetadata1)
-            partition.append(transactionalId, JsonSerDes.serialize(newStateMetadata1))
-            cacheEntry.metadataPerTransactionalId.put(transactionalId, newStateMetadata1)
+            markTxnCommitted(transactionalId, cacheEntry, partition, txnMetadata)
 
 
           } catch {
@@ -221,6 +208,33 @@ class SimpleKafkaApi(config: Config, replicaManager: ReplicaManager) extends Log
         case _ ⇒ RequestOrResponse(0, "Unknown Request", request.correlationId)
       }
    }
+
+  private def markTxnCommitted(transactionalId: String, cacheEntry: TxnMetadataCacheEntry, partition: Partition, txnMetadata: TransactionMetadata) = {
+    val newStateMetadata1 = txnMetadata.completeCommit()
+    cacheEntry.metadataPerTransactionalId.put(transactionalId, newStateMetadata1)
+    partition.append(transactionalId, JsonSerDes.serialize(newStateMetadata1))
+    cacheEntry.metadataPerTransactionalId.put(transactionalId, newStateMetadata1)
+  }
+
+  private def sendEndMarkersToParticipants(transactionalId: String, cacheEntry: TxnMetadataCacheEntry, producerId: Long) = {
+    cacheEntry.metadataPerTransactionalId.get(transactionalId).topicPartitions.foreach(tp => {
+      try {
+        val partitionInfo = getPartitionDetails(tp.topic)
+        val leader: Broker = partitionInfo.get(tp).get.leader
+        sendEndTransactionMarker(leader, transactionalId, producerId, tp);
+      } catch {
+        case e: Exception => e.printStackTrace()
+      }
+    })
+  }
+
+  private def markTxnPreparingToCommit(transactionalId: String, cacheEntry: TxnMetadataCacheEntry, partition: Partition, txnMetadata: TransactionMetadata) = {
+    //add to prepareToCommit state to transaction log
+    val newStateMetadata = txnMetadata.prepareCommit()
+    cacheEntry.metadataPerTransactionalId.put(transactionalId, newStateMetadata)
+    partition.append(transactionalId, JsonSerDes.serialize(newStateMetadata))
+    cacheEntry.metadataPerTransactionalId.put(transactionalId, newStateMetadata)
+  }
 
   private def getPartitionDetails(name: String) = {
     val topicAndPartitions = getTopicMetadata(name)

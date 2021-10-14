@@ -1,13 +1,13 @@
 package com.dist.simplekafka
 
 import com.dist.common.{TestUtils, ZookeeperTestHarness}
-import com.dist.simplekafka.common.{Logging, TopicAndPartition}
+import com.dist.simplekafka.common.Logging
 import com.dist.simplekafka.network.InetAddressAndPort
 import com.dist.simplekafka.server.Config
 import com.dist.util.Networks
 
 
-class ProducerConsumerTest extends ZookeeperTestHarness with Logging {
+class TransactionalProducerConsumerTest extends ZookeeperTestHarness with Logging {
 
   test("should produce and consumer messages from five broker cluster") {
     val broker1 = newBroker(1)
@@ -26,7 +26,9 @@ class ProducerConsumerTest extends ZookeeperTestHarness with Logging {
       broker1.controller.liveBrokers.size == 5
     }, "Waiting for all brokers to be discovered by the controller")
 
-    new CreateTopicCommand(broker1.zookeeperClient).createTopic("topic1", 2, 3)
+    val createTopicCommand = new CreateTopicCommand(broker1.zookeeperClient)
+    createTopicCommand.createTopic("account_balance", 2, 3)
+    createTopicCommand.createTopic("transactions", 2, 3)
 
 
     TestUtils.waitUntilTrue(() ⇒ {
@@ -41,34 +43,35 @@ class ProducerConsumerTest extends ZookeeperTestHarness with Logging {
 
     simpleProducer.initTransaction()
 
-    val offset1 = simpleProducer.produce("topic1", "key1", "message1")
+    val offset1 = simpleProducer.produce("account_balance", "AC10001", "balance=1000")
     assert(offset1 == 1) //first offset
 
-    val offset2 = simpleProducer.produce("topic1", "key2", "message2")
+    val offset2 = simpleProducer.produce("transactions", "AC10001_2021_02_01", "credit=500")
     assert(offset2 == 1) //first offset on different partition
 
-    val offset3 = simpleProducer.produce("topic1", "key3", "message3")
+    val offset3 = simpleProducer.produce("transactions", "AC10001_2021_02_02", "credit=500")
 
-    assert(offset3 == 2) //offset on first partition
+    assert(offset3 == 1) //offset on first partition
 
     val txnConsumer = new SimpleConsumer(bootstrapBroker)
-    val messages = txnConsumer.consume("topic1", FetchHighWatermark)
-    assert(messages.size() == 3)
-    assert(messages.get("key1") == "message1")
-    assert(messages.get("key2") == "message2")
-    assert(messages.get("key3") == "message3")
+    val messages = txnConsumer.consume("account_balance", FetchHighWatermark)
+    assert(messages.size() == 1)
+    assert(messages.get("AC10001") == "balance=1000")
+
 
     val nonTxnConsumer = new SimpleConsumer(bootstrapBroker)
-    assert(nonTxnConsumer.consume("topic1", FetchTxnCommitted).size() == 0)
+    assert(nonTxnConsumer.consume("account_balance", FetchTxnCommitted).size() == 0)
+    assert(nonTxnConsumer.consume("transactions", FetchTxnCommitted).size() == 0)
 
-    simpleProducer.sendOffsetsToTransaction(Map(TopicAndPartition("topic1", 0) -> 1), "group1")
     simpleProducer.commitTransaction()
 
-    val committedMessages = nonTxnConsumer.consume("topic1", FetchTxnCommitted)
-    assert(committedMessages.size() == 3)
-    assert(committedMessages.get("key1") == "message1")
-    assert(committedMessages.get("key2") == "message2")
-    assert(committedMessages.get("key3") == "message3")
+    val committedAccountBalances = nonTxnConsumer.consume("account_balance", FetchTxnCommitted)
+    assert(committedAccountBalances.size() == 1)
+    assert(committedAccountBalances.get("AC10001") == "balance=1000")
+
+    val committedTransactions = nonTxnConsumer.consume("transactions", FetchTxnCommitted)
+    assert(committedTransactions.get("AC10001_2021_02_01") == "credit=500")
+    assert(committedTransactions.get("AC10001_2021_02_02") == "credit=500")
 
   }
 
